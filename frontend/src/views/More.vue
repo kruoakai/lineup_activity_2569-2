@@ -82,6 +82,7 @@ const groups = computed(() => {
       title: 'ผู้ดูแลระบบ',
       items: [
         { to: '/admin/users', icon: '👤', color: 'blue', label: 'ผู้ใช้และสิทธิ์', sub: 'บทบาท ตัวแทน รีเซ็ตรหัส' },
+        { to: '/admin/user-data', icon: '📤', color: 'teal', label: 'นำเข้า/ส่งออกผู้ใช้ และ API', sub: 'Excel แม่แบบ · เชื่อมต่อระบบภายนอก' },
         { to: '/admin/settings', icon: '⚙️', color: 'slate', label: 'ตั้งค่าการเช็กชื่อ', sub: 'เวลา พื้นที่ (แผนที่) วิธีเช็กชื่อ' },
         { to: '/admin/report-setup', icon: '🖋', color: 'indigo', label: 'แบบรายงานและผู้ลงนาม', sub: 'ผู้ลงนาม และอีเมล' },
         { to: '/admin/data', icon: '🎲', color: 'amber', label: 'ข้อมูลจำลอง', sub: 'ทดลอง / เริ่มใช้งานจริง' },

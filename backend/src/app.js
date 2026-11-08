@@ -38,6 +38,7 @@ function createApp() {
   app.use('/api/admin', require('./routes/admin'));
   app.use('/api/profile', require('./routes/profile'));
   app.use('/api/report-docs', require('./routes/reportDocs'));
+  app.use('/api/ext/v1', require('./routes/ext'));
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'ไม่พบ API' }));
 

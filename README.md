@@ -3,7 +3,7 @@
 เว็บแอปที่ออกแบบให้ใช้บนมือถือก่อน (PWA ติดตั้งลงหน้าจอหลักได้) สำหรับเช็กชื่อเข้าแถวช่วง 07:30–08:30 น.
 URL ใช้งานจริง: **https://lineup.ccollege.ac.th**
 
-**ติดตั้ง:** ดู [INSTALL.md](INSTALL.md) · **ทดสอบ:** ดู [TESTING.md](TESTING.md) · **คู่มือผู้ใช้แยกตามบทบาท:** [docs/](docs/)
+**ติดตั้ง:** ดู [INSTALL.md](INSTALL.md) · **ทดสอบ:** ดู [TESTING.md](TESTING.md) · **API ระบบภายนอก:** ดู [API.md](API.md) · **คู่มือผู้ใช้แยกตามบทบาท:** [docs/](docs/)
 
 > ไฟล์รายชื่อบุคลากร (`backend/data/personnel.json`), รหัสผ่าน และไฟล์ `.env` เป็นข้อมูลส่วนบุคคล/ความลับ **ไม่ได้อยู่ใน repository นี้** ดูวิธีเตรียมใน INSTALL.md
 
@@ -28,7 +28,7 @@ URL ใช้งานจริง: **https://lineup.ccollege.ac.th**
 | `backend/` | Node.js + **Express 5**, mysql2, jsonwebtoken, bcryptjs, helmet, express-rate-limit |
 | `frontend/` | Vue 3 + Vite + vite-plugin-pwa + Chart.js + qrcode |
 | ฐานข้อมูล | MySQL 8.4 (utf8mb4) — `backend/db/schema.sql` |
-| ทดสอบ | Unit (Jest + node:test) · Integration (Jest + Supertest กับ MySQL จริง) · E2E (Playwright + Chrome) — รวม 202 เคส ดู `TESTING.md` |
+| ทดสอบ | Unit (Jest + node:test) · Integration (Jest + Supertest กับ MySQL จริง) · E2E (Playwright + Chrome) — รวม 221 เคส ดู `TESTING.md` |
 | ติดตั้ง | Docker Compose + Nginx (HTTPS, Let's Encrypt) — `deploy/` |
 
 ## กติกาที่ระบบใช้ (ตั้งค่าได้ที่หน้า "ตั้งค่าระบบ")
@@ -66,8 +66,11 @@ URL ใช้งานจริง: **https://lineup.ccollege.ac.th**
 (179 คน, 36 แผนก/งาน) ด้วย `node scripts/import-excel.js` ชื่อผู้ใช้ = **รหัสพนักงาน** หรืออีเมล รหัสผ่านเริ่มต้น `12345678`
 ต้องเปลี่ยนรหัสและยอมรับเงื่อนไข PDPA ตอนเข้าครั้งแรก
 
-อัปเดตรายชื่อภายหลัง: แปลง Excel ใหม่เป็น `personnel.json` แล้วรัน
-`docker compose exec app node scripts/seed.js --out /app/uploads/new.csv` (คนเดิมไม่ถูกรีเซ็ตรหัส)
+อัปเดตรายชื่อภายหลังทำได้ 2 ทาง (กติกาเดียวกัน: จับคู่ด้วยรหัสพนักงาน คนเดิมไม่ถูกรีเซ็ตรหัส คนใหม่ได้รหัสเริ่มต้น):
+
+- **Excel** — ผู้ดูแลระบบเข้า *เพิ่มเติม → นำเข้า/ส่งออกผู้ใช้ และ API* ดาวน์โหลดแม่แบบ กรอก อัปโหลด ตรวจผล แล้วบันทึก
+  (รับไฟล์จากระบบสารบรรณฯ และไฟล์ที่ส่งออกจากหน้าเดียวกันได้)
+- **API** — ระบบภายนอกส่งรายชื่อ/ดึงผลเข้าแถวอัตโนมัติด้วยกุญแจ API ดู [API.md](API.md)
 
 ## พัฒนาในเครื่อง
 

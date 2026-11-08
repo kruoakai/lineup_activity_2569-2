@@ -10,6 +10,8 @@ const exporter = require('../services/exporter');
 const zlib = require('zlib');
 const fs = require('fs');
 const mailer = require('../services/mailer');
+const userImport = require('../services/userImport');
+const apiKeys = require('../services/apiKeys');
 const { confirmPassword } = require('../services/confirm');
 const { authenticate, requireReady, requireRole, HttpError } = require('../middleware/auth');
 
@@ -181,6 +183,63 @@ router.post('/users/:id/reset-password', async (req, res) => {
   await tokens.revokeAllForUser(id);
   await log(req, 'user.reset_password', id);
   res.json({ initialPassword: initial });
+});
+
+// ---------- นำเข้า/ส่งออกผู้ใช้ด้วย Excel ----------
+router.get('/users/template.xlsx', async (_req, res) => {
+  await exporter.send(res, await userImport.templateWorkbook(), 'แม่แบบนำเข้ารายชื่อบุคลากร.xlsx');
+});
+
+// ส่งออกรายชื่อ (มีข้อมูลส่วนบุคคล) — ต้องยืนยันรหัสผ่าน
+router.post('/users/export.xlsx', async (req, res) => {
+  await confirmPassword(req.user.id, req.body?.password);
+  const { wb, count } = await userImport.exportWorkbook();
+  await log(req, 'users.export', `${count} คน`);
+  await exporter.send(res, wb, `รายชื่อบุคลากร-${new Date().toISOString().slice(0, 10)}.xlsx`);
+});
+
+function importFile(body) {
+  const b64 = String(body?.file || '').replace(/^data:[^,]*,/, '');
+  if (!b64) throw new HttpError(400, 'กรุณาเลือกไฟล์ Excel');
+  const buf = Buffer.from(b64, 'base64');
+  if (buf.length > 5 * 1024 * 1024) throw new HttpError(400, 'ไฟล์ใหญ่เกิน 5 MB');
+  return userImport.parseWorkbook(buf);
+}
+
+// ตรวจไฟล์และแสดงตัวอย่างผล (ยังไม่บันทึก)
+router.post('/users/import/preview', async (req, res) => {
+  const rows = await importFile(req.body);
+  const p = await userImport.plan(rows, { actorId: req.user.id, deactivateMissing: req.body?.deactivateMissing === true });
+  res.json({ summary: p.summary, rows: p.rows.map(({ data, dept, ...r }) => r), newDepartments: p.newDepartments, deactivate: p.deactivate });
+});
+
+// บันทึกจริง — ต้องยืนยันรหัสผ่าน
+router.post('/users/import', async (req, res) => {
+  await confirmPassword(req.user.id, req.body?.password);
+  const rows = await importFile(req.body);
+  const p = await userImport.plan(rows, { actorId: req.user.id, deactivateMissing: req.body?.deactivateMissing === true });
+  if (!p.summary.create && !p.summary.update && !p.summary.deactivate) throw new HttpError(400, 'ไม่มีข้อมูลที่ต้องบันทึก');
+  const result = await userImport.apply(p);
+  await log(req, 'users.import', `${p.summary.create}+${p.summary.update}`, p.summary);
+  res.json(result);
+});
+
+// ---------- กุญแจ API สำหรับระบบภายนอก ----------
+router.get('/api-keys', async (_req, res) => {
+  res.json({ items: await apiKeys.list(), scopes: apiKeys.SCOPES, ratePerMin: apiKeys.RATE_PER_MIN });
+});
+
+router.post('/api-keys', async (req, res) => {
+  await confirmPassword(req.user.id, req.body?.password);
+  const k = await apiKeys.create({ ...req.body, actorId: req.user.id });
+  await log(req, 'api_key.create', k.name, { prefix: k.prefix, scopes: k.scopes });
+  res.status(201).json(k);
+});
+
+router.delete('/api-keys/:id', async (req, res) => {
+  await apiKeys.revoke(req.params.id);
+  await log(req, 'api_key.revoke', req.params.id);
+  res.json({ ok: true });
 });
 
 router.get('/departments', async (_req, res) => {

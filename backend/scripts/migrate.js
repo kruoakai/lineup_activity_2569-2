@@ -129,6 +129,27 @@ const MIGRATIONS = [
       'ALTER TABLE users ADD UNIQUE KEY uq_users_line (line_user_id)',
     ],
   },
+  {
+    id: '2026-11-08-11-api-keys',
+    // กุญแจ API สำหรับระบบภายนอก — เก็บเฉพาะ SHA-256 ของกุญแจ (แสดงกุญแจจริงครั้งเดียวตอนสร้าง)
+    sql: [`CREATE TABLE IF NOT EXISTS api_keys (
+      id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name         VARCHAR(100) NOT NULL,
+      prefix       VARCHAR(16) NOT NULL,
+      key_hash     CHAR(64) NOT NULL,
+      scopes       VARCHAR(200) NOT NULL,
+      allowed_ips  VARCHAR(500) NOT NULL DEFAULT '',
+      created_by   INT UNSIGNED NULL,
+      created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at   DATETIME NULL,
+      revoked_at   DATETIME NULL,
+      last_used_at DATETIME NULL,
+      last_used_ip VARCHAR(64) NULL,
+      use_count    INT UNSIGNED NOT NULL DEFAULT 0,
+      UNIQUE KEY uq_api_key_hash (key_hash),
+      CONSTRAINT fk_api_key_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`],
+  },
 ];
 
 async function migrate() {

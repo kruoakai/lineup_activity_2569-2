@@ -2,6 +2,7 @@
   <div>
     <div class="row">
       <h1 class="grow" style="margin:0">ผู้ใช้และสิทธิ์</h1>
+      <router-link class="btn sm" to="/admin/user-data">📤 นำเข้า/ส่งออก</router-link>
       <button class="btn sm primary" @click="edit({})">+ เพิ่มผู้ใช้</button>
     </div>
     <div class="row" style="margin:10px 0">

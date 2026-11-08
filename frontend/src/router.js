@@ -14,6 +14,7 @@ const routes = [
   { path: '/report-docs', component: () => import('./views/ReportDocs.vue') },
   { path: '/report-docs/:id', component: () => import('./views/ReportDoc.vue') },
   { path: '/admin/data', component: () => import('./views/admin/DataTools.vue'), meta: { can: (u) => u.role === 'admin' } },
+  { path: '/admin/user-data', component: () => import('./views/admin/UserData.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/admin/backups', component: () => import('./views/admin/Backups.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/admin/report-setup', component: () => import('./views/admin/ReportSetup.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/', component: () => import('./views/Home.vue') },
