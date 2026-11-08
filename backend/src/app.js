@@ -43,8 +43,17 @@ function createApp() {
 
   // เสิร์ฟหน้าเว็บ (ถ้าไม่ได้ใช้ Nginx เสิร์ฟไฟล์ static)
   if (config.staticDir && fs.existsSync(config.staticDir)) {
-    app.use(express.static(config.staticDir, { index: false, maxAge: '1h' }));
-    app.get('/{*splat}', (_req, res) => res.sendFile(path.join(config.staticDir, 'index.html')));
+    // ไฟล์ใน /assets มีชื่อแบบ hash เก็บได้นาน ส่วน index.html / sw.js / manifest ต้องตรวจใหม่ทุกครั้ง เพื่อให้มือถือได้เวอร์ชันล่าสุดทันที
+    app.use(express.static(config.staticDir, {
+      index: false,
+      setHeaders(res, file) {
+        res.setHeader('Cache-Control', /[\\/]assets[\\/]/.test(file) ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    }));
+    app.get('/{*splat}', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.join(config.staticDir, 'index.html'));
+    });
   }
 
   // ตัวจัดการข้อผิดพลาด
