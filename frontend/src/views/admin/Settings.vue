@@ -19,7 +19,10 @@
           <button type="button" class="btn sm" :disabled="busy" @click="clearOverride(o.day)">ยกเลิกการตั้งนี้</button>
         </li>
       </ul>
-      <p class="small muted" style="margin:0">วันที่ตั้งในปฏิทิน 30 วันข้างหน้า · จัดการทั้งหมดที่ <router-link to="/calendar">ปฏิทินและภาคเรียน</router-link></p>
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span class="small muted">วันที่ตั้งในปฏิทิน 30 วันข้างหน้า</span>
+        <router-link to="/calendar" class="btn sm">🗓 เปิดปฏิทินและภาคเรียน ›</router-link>
+      </div>
     </section>
     <form v-if="s" class="stack" @submit.prevent="save">
       <section class="card stack">
@@ -63,8 +66,8 @@
             <label class="field grow"><span>ลองจิจูด</span><input v-model="s.geofence_lng" inputmode="decimal" /></label>
           </div>
         </details>
-        <a v-if="s.geofence_lat && s.geofence_lng" class="small" target="_blank" rel="noopener"
-          :href="`https://www.google.com/maps?q=${s.geofence_lat},${s.geofence_lng}`">ดูจุดนี้บน Google Maps ↗</a>
+        <a v-if="s.geofence_lat && s.geofence_lng" class="btn sm" style="align-self:flex-start" target="_blank" rel="noopener"
+          :href="`https://www.google.com/maps?q=${s.geofence_lat},${s.geofence_lng}`">📍 ดูจุดนี้บน Google Maps ↗</a>
         <div class="row">
           <label class="field grow"><span>รัศมี (เมตร)</span><input v-model.number="s.geofence_radius_m" type="number" min="20" max="2000" /></label>
           <label class="field grow"><span>ความคลาดเคลื่อน GPS สูงสุดที่ยอมรับ (เมตร)</span><input v-model.number="s.max_accuracy_m" type="number" min="10" max="1000" /></label>

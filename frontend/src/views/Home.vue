@@ -87,10 +87,15 @@
       <span>›</span>
     </router-link>
 
-    <section v-if="state && (auth.user.can_proxy || auth.user.peer_check) && !['admin','activity'].includes(auth.user.role)" class="card row small">
-      <span class="badge info">{{ auth.user.can_proxy ? 'ตัวแทนเช็กชื่อแผนก' : 'เช็กแทนกันในแผนกได้' }}</span>
-      <router-link to="/roster" class="grow">เช็กชื่อให้เพื่อนใน{{ auth.user.department_name || 'แผนก' }} ›</router-link>
-    </section>
+    <router-link v-if="state && (auth.user.can_proxy || auth.user.peer_check) && !['admin','activity'].includes(auth.user.role)" to="/roster" class="peer-tile">
+      <span class="pi" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" /><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5" /><path d="M15.5 5.2a3 3 0 0 1 0 5.6M17.5 14.3c1.8.6 3 2.3 3.5 4.7" /></svg></span>
+      <span class="pt">
+        <small>{{ auth.user.can_proxy ? 'ท่านเป็นตัวแทนเช็กชื่อแผนก' : 'เช็กแทนกันในแผนกได้' }}</small>
+        <b>เช็กชื่อให้เพื่อน</b>
+        <small class="dept">{{ auth.user.department_name || 'ในแผนกของท่าน' }}</small>
+      </span>
+      <span class="go-btn">เปิดรายชื่อ <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></span>
+    </router-link>
 
     <section v-if="state && state.phase === 'open' && !state.geofence && state.checkMode !== 'none'" class="alert warn small">
       ผู้ดูแลระบบยังไม่ได้กำหนดพื้นที่เข้าแถว ระบบจะส่งการเช็กชื่อให้เจ้าหน้าที่ตรวจสอบ
@@ -272,7 +277,7 @@ onUnmounted(() => clearInterval(timer));
 .phase.ok { color: var(--ok); } .phase.warn { color: var(--warn); } .phase.bad { color: var(--bad); } .phase.muted { color: var(--muted); }
 .checkin {
   width: 220px; height: 220px; border-radius: 50%; border: 0; margin: 10px auto 14px; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 30% 30%, #3b82d6, var(--brand)); color: #fff; font: inherit; font-size: 1.35rem; font-weight: 700; line-height: 1.35;
+  background: radial-gradient(circle at 30% 30%, #3b82d6, var(--fill)); color: #fff; font: inherit; font-size: 1.35rem; font-weight: 700; line-height: 1.35;
   box-shadow: 0 10px 30px rgba(29, 78, 137, .35), inset 0 -6px 0 rgba(0,0,0,.12); cursor: pointer;
 }
 .checkin:active { transform: scale(.97); }
@@ -298,6 +303,19 @@ summary { cursor: pointer; padding: 6px 0; }
 .at b { white-space: nowrap; }
 .at b { font-size: 1rem; }
 .at small { color: var(--muted); font-size: .78rem; }
+.peer-tile { display: flex; align-items: center; gap: 12px; padding: 14px; margin-bottom: 14px; border-radius: var(--radius); text-decoration: none; color: inherit;
+  background: linear-gradient(135deg, var(--info-bg), var(--card) 70%); border: 1px solid var(--line); border-left: 4px solid #0f9d74; box-shadow: var(--shadow); transition: transform .1s, box-shadow .15s, border-color .15s; }
+.peer-tile:hover, .peer-tile:focus-visible { box-shadow: 0 6px 18px rgba(29, 78, 137, .14); border-color: var(--brand-2); border-left-color: #0f9d74; outline: none; }
+.peer-tile:active { transform: scale(.98); }
+.pi { flex: none; width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, #0f9d74, #34c38f); color: #fff; display: flex; align-items: center; justify-content: center; }
+.pi svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.pt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.pt b { font-size: 1.05rem; }
+.pt small { color: var(--muted); font-size: .78rem; }
+.pt .dept { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go-btn { flex: none; display: inline-flex; align-items: center; gap: 2px; padding: 8px 10px 8px 14px; border-radius: 999px; background: var(--fill); color: #fff; font-weight: 600; font-size: .85rem; white-space: nowrap; }
+.go-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 380px) { .go-btn { font-size: 0; padding: 10px; gap: 0; } .go-btn svg { width: 18px; height: 18px; } }
 .scan-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .scan-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .more-photo summary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-weight: 600; font-size: .9rem; list-style: none; }

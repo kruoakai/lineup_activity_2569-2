@@ -6,6 +6,7 @@
   --line: #e3e7ed;
   --brand: #1d4e89;
   --brand-2: #2f6fb8;
+  --fill: #1d4e89;
   --ok: #1f9d55;
   --ok-bg: #e5f6ec;
   --bad: #d64545;
@@ -29,6 +30,7 @@
     --line: #2a3541;
     --brand: #5b9bf0;
     --brand-2: #7cb2f5;
+    --fill: #1f5596;
     --ok-bg: #143323;
     --bad-bg: #3a1c1c;
     --warn-bg: #3a2d14;
@@ -63,7 +65,7 @@ h3 { font-size: 1rem; }
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: calc(env(safe-area-inset-top) + 10px) 16px 10px;
-  background: var(--brand); color: #fff;
+  background: var(--fill); color: #fff;
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
 .brand > div { min-width: 0; }
@@ -119,7 +121,7 @@ main.with-nav { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
   text-decoration: none;
 }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary { background: var(--fill); border-color: var(--fill); color: #fff; }
 .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
 .btn.danger { color: var(--bad); }
 .btn.block { width: 100%; }
@@ -162,7 +164,7 @@ input[type=checkbox] { width: 20px; min-height: 20px; height: 20px; }
   flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--card); color: var(--text); font: inherit; font-size: .9rem; cursor: pointer;
 }
-.tabs button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.tabs button.on { background: var(--fill); border-color: var(--fill); color: #fff; }
 
 .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
 @media (min-width: 640px) { .stats { grid-template-columns: repeat(4, 1fr); } }

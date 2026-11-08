@@ -35,7 +35,7 @@
 
       <div class="row between">
         <label class="remember"><input v-model="remember" type="checkbox" /> จำฉันไว้ในระบบ</label>
-        <router-link to="/forgot" class="small">ลืมรหัสผ่าน?</router-link>
+        <router-link to="/forgot" class="forgot">ลืมรหัสผ่าน?</router-link>
       </div>
 
       <button class="btn primary block go" :disabled="busy">
@@ -118,6 +118,8 @@ async function submit() {
 .hint { margin: 6px 0 0; font-size: .82rem; }
 .hint.warn { color: var(--warn); }
 .between { justify-content: space-between; }
+.forgot { font-size: .9rem; font-weight: 600; color: var(--brand-2); text-decoration: none; padding: 8px 4px; border-radius: 8px; }
+.forgot:hover, .forgot:focus-visible { text-decoration: underline; }
 .remember { display: flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; }
 .remember input { width: 18px; height: 18px; min-height: 18px; }
 .line-btn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; white-space: nowrap; background: #06c755; border-color: #06c755; color: #fff; font-weight: 700; font-size: 1.02rem; text-decoration: none; }

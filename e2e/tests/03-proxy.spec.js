@@ -16,6 +16,11 @@ test.describe('ตัวแทนเช็กชื่อและเช็ก�
     await logout(page);
 
     await login(page, 'T1');
+    // การ์ดเช็กชื่อให้เพื่อนบนหน้าแรกเป็นปุ่มกดทั้งใบ
+    await expect(page.locator('.peer-tile')).toContainText('ท่านเป็นตัวแทนเช็กชื่อแผนก');
+    await page.locator('.peer-tile').click();
+    await expect(page).toHaveURL(/\/roster/);
+    await page.goto('/');
     await page.locator('.bottomnav').getByText('รายชื่อ').click();
     await expect(page).toHaveURL(/\/roster/);
     await expect(page.locator('.list')).not.toContainText('ครูต่างแผนก'); // เห็นเฉพาะแผนกตัวเอง

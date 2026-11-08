@@ -14,7 +14,7 @@
         <input v-model.trim="identifier" autocapitalize="none" required /></label>
       <button class="btn primary block" :disabled="busy || !!done">{{ busy ? 'กำลังส่ง…' : 'ส่งลิงก์ไปที่อีเมล' }}</button>
       <p class="small muted">ไม่ได้รับอีเมล? ตรวจในโฟลเดอร์จดหมายขยะ หรือติดต่อผู้ดูแลระบบ (อีเมลในระบบอาจไม่ถูกต้อง)</p>
-      <router-link class="center small" to="/login">กลับหน้าเข้าสู่ระบบ</router-link>
+      <router-link class="btn block" to="/login">‹ กลับหน้าเข้าสู่ระบบ</router-link>
     </form>
   </div>
 </template>
