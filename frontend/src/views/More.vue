@@ -9,40 +9,18 @@
           รหัส {{ auth.user.employee_code }}<template v-if="auth.user.can_proxy"> · ตัวแทนเช็กชื่อแผนก</template>
         </p>
       </div>
-      <span class="muted">แก้ไข ›</span>
+      <span class="muted" style="white-space:nowrap">แก้ไข ›</span>
     </router-link>
 
-    <section class="card">
-      <h3>เอกสารและรายงาน</h3>
-      <ul class="list">
-        <li><router-link class="main" to="/report-docs">📝 เอกสารเสนอลงนาม</router-link><span v-if="pending" class="badge warn">รอท่าน {{ pending }}</span></li>
-        <li v-if="viewAll"><router-link class="main" to="/executive">📈 รายงานผู้บริหาร (4 รูปแบบ)</router-link></li>
-      </ul>
-    </section>
-
-    <section v-if="auth.user.can_proxy && !manage" class="card row small">
-      <span class="badge info">ตัวแทนเช็กชื่อแผนก</span>
-      <router-link to="/roster" class="grow">ไปหน้าเช็กแทนคนในแผนก ›</router-link>
-    </section>
-
-    <section v-if="manage" class="card">
-      <h3>งานกิจกรรม</h3>
-      <ul class="list">
-        <li><router-link class="main" to="/qr">📺 แสดง QR Code ที่จุดเข้าแถว</router-link></li>
-        <li><router-link class="main" to="/roster?status=pending">🕑 ตรวจสอบคำขอรอตรวจสอบ</router-link></li>
-        <li><router-link class="main" to="/calendar">🗓 ปฏิทินวันเข้าแถว / ภาคเรียน</router-link></li>
-      </ul>
-    </section>
-
-    <section v-if="auth.user.role === 'admin'" class="card">
-      <h3>ผู้ดูแลระบบ</h3>
-      <ul class="list">
-        <li><router-link class="main" to="/admin/users">👤 จัดการผู้ใช้และสิทธิ์</router-link></li>
-        <li><router-link class="main" to="/admin/settings">⚙️ ตั้งค่าเวลา พื้นที่ (แผนที่) และวิธีเช็กชื่อ</router-link></li>
-        <li><router-link class="main" to="/admin/report-setup">🖋 แบบรายงาน ผู้ลงนาม และอีเมล</router-link></li>
-        <li><router-link class="main" to="/admin/data">🎲 ข้อมูลจำลอง / เริ่มใช้งานจริง</router-link></li>
-        <li><router-link class="main" to="/admin/backups">💾 สำรองฐานข้อมูล</router-link></li>
-      </ul>
+    <section v-for="g in groups" :key="g.title" class="menu-group">
+      <h3>{{ g.title }}</h3>
+      <div class="tiles">
+        <router-link v-for="m in g.items" :key="m.to" :to="m.to" class="tile">
+          <span class="ti" :class="m.color" aria-hidden="true">{{ m.icon }}<i v-if="m.badge" class="cnt">{{ m.badge }}</i></span>
+          <span class="tt"><b>{{ m.label }}</b><small>{{ m.sub }}</small></span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </router-link>
+      </div>
     </section>
 
     <section class="card stack">
@@ -77,6 +55,43 @@ const viewAll = computed(() => ['activity', 'executive', 'admin'].includes(auth.
 const pending = ref(0);
 const avatar = ref(null);
 
+const groups = computed(() => {
+  const u = auth.user;
+  const out = [{
+    title: 'เอกสารและรายงาน',
+    items: [
+      { to: '/report-docs', icon: '📝', color: 'amber', label: 'เอกสารเสนอลงนาม', sub: pending.value ? `รอท่านลงนาม ${pending.value} ฉบับ` : 'ดู สร้าง และลงนามเอกสาร', badge: pending.value },
+      viewAll.value && { to: '/executive', icon: '📈', color: 'blue', label: 'รายงานผู้บริหาร', sub: 'สรุปภาพรวม 4 รูปแบบ' },
+    ],
+  }];
+  if ((u.can_proxy || u.peer_check) && !manage.value) {
+    out.push({ title: 'เช็กชื่อแทน', items: [{ to: '/roster', icon: '👥', color: 'teal', label: 'เช็กแทนคนในแผนก', sub: u.department_name || 'รายชื่อในแผนก' }] });
+  }
+  if (manage.value) {
+    out.push({
+      title: 'งานกิจกรรม',
+      items: [
+        { to: '/qr', icon: '📺', color: 'indigo', label: 'แสดง QR Code', sub: 'เปิดบนจอที่จุดเข้าแถว' },
+        { to: '/roster?status=pending', icon: '🕑', color: 'amber', label: 'คำขอรอตรวจสอบ', sub: 'อนุมัติ / ไม่อนุมัติ' },
+        { to: '/calendar', icon: '🗓', color: 'teal', label: 'ปฏิทินวันเข้าแถว', sub: 'วันหยุด กิจกรรมพิเศษ ภาคเรียน' },
+      ],
+    });
+  }
+  if (u.role === 'admin') {
+    out.push({
+      title: 'ผู้ดูแลระบบ',
+      items: [
+        { to: '/admin/users', icon: '👤', color: 'blue', label: 'ผู้ใช้และสิทธิ์', sub: 'บทบาท ตัวแทน รีเซ็ตรหัส' },
+        { to: '/admin/settings', icon: '⚙️', color: 'slate', label: 'ตั้งค่าการเช็กชื่อ', sub: 'เวลา พื้นที่ (แผนที่) วิธีเช็กชื่อ' },
+        { to: '/admin/report-setup', icon: '🖋', color: 'indigo', label: 'แบบรายงานและผู้ลงนาม', sub: 'ผู้ลงนาม และอีเมล' },
+        { to: '/admin/data', icon: '🎲', color: 'amber', label: 'ข้อมูลจำลอง', sub: 'ทดลอง / เริ่มใช้งานจริง' },
+        { to: '/admin/backups', icon: '💾', color: 'teal', label: 'สำรองฐานข้อมูล', sub: 'ดาวน์โหลด .sql / Excel' },
+      ],
+    });
+  }
+  return out.map((g) => ({ ...g, items: g.items.filter(Boolean) }));
+});
+
 async function doLogout() {
   await logout();
   router.replace('/login');
@@ -92,4 +107,20 @@ onMounted(async () => {
 .me { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
 .av { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; background: var(--info-bg); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; flex: none; }
 .av img { width: 100%; height: 100%; object-fit: cover; }
+.menu-group { margin-bottom: 18px; }
+.menu-group h3 { margin: 0 4px 8px; font-size: .85rem; font-weight: 700; color: var(--muted); letter-spacing: .3px; }
+.tiles { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 640px) { .tiles { grid-template-columns: 1fr 1fr; } }
+.tile { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 12px 12px 12px 14px; border-radius: 16px; background: var(--card);
+  border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--text); text-decoration: none; transition: transform .1s, border-color .15s, box-shadow .15s; }
+.tile:hover, .tile:focus-visible { border-color: var(--brand-2); box-shadow: 0 6px 18px rgba(29, 78, 137, .14); outline: none; }
+.tile:active { transform: scale(.98); }
+.ti { position: relative; flex: none; width: 44px; height: 44px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+.ti.blue { background: #e3eefb; } .ti.amber { background: #fdf1d8; } .ti.teal { background: #dcf5ec; } .ti.indigo { background: #e8e6fb; } .ti.slate { background: #e7ebf0; }
+@media (prefers-color-scheme: dark) { .ti.blue, .ti.amber, .ti.teal, .ti.indigo, .ti.slate { background: rgba(255, 255, 255, .08); } }
+.cnt { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--bad); color: #fff; font-size: .72rem; font-style: normal; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--card); }
+.tt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.tt b { font-size: 1rem; }
+.tt small { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chev { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 </style>

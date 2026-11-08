@@ -13,7 +13,7 @@
       <div class="fld">
         <label for="login-user">รหัสพนักงาน หรืออีเมล</label>
         <div class="ibox" :class="{ invalid: touched && !username }">
-          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1" /></svg>
+          <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5c.8-3.9 3.9-6 7.5-6s6.7 2.1 7.5 6" /></svg></span>
           <input id="login-user" v-model.trim="username" autocomplete="username" autocapitalize="none" spellcheck="false"
             placeholder="เช่น 475 หรืออีเมล" required />
         </div>
@@ -22,7 +22,7 @@
       <div class="fld">
         <label for="login-pass">รหัสผ่าน</label>
         <div class="ibox" :class="{ invalid: touched && !password }">
-          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /><circle cx="12" cy="15.5" r="1" /></svg>
+          <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /><path d="M12 14.5v2.5" /></svg></span>
           <input id="login-pass" v-model="password" :type="show ? 'text' : 'password'" autocomplete="current-password"
             placeholder="รหัสผ่าน" required @keyup="capsCheck" @keydown="capsCheck" />
           <button type="button" class="eye" :aria-label="show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'" :aria-pressed="show" @click="show = !show">
@@ -103,13 +103,15 @@ async function submit() {
 .login { max-width: 400px; margin: 7vh auto 0; text-align: center; padding: 0 4px; }
 .login form { text-align: left; margin-top: 18px; }
 .fld label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
-.ibox { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 6px 0 12px; border-radius: 12px;
+.ibox { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 6px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--bg); transition: border-color .15s, box-shadow .15s; }
 .ibox:focus-within { border-color: var(--brand-2); box-shadow: 0 0 0 3px rgba(47, 111, 184, .18); background: var(--card); }
 .ibox.invalid { border-color: var(--bad); }
 .ibox input { border: 0; background: transparent; min-height: 48px; padding: 0; flex: 1; outline: none; }
-.ico { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.ibox:focus-within .ico { stroke: var(--brand-2); }
+.ico { width: 38px; height: 38px; flex: none; border-radius: 10px; background: var(--info-bg); color: var(--brand-2); display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.ico svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ibox:focus-within .ico { background: linear-gradient(135deg, #1d4e89, #2f6fb8); color: #fff; }
+.ibox.invalid .ico { background: var(--bad-bg, #fde8e8); color: var(--bad); }
 .eye { flex: none; width: 40px; height: 40px; border: 0; background: transparent; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .eye:hover, .eye:focus-visible { background: var(--line); }
 .eye svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

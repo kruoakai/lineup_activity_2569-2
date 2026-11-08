@@ -41,6 +41,13 @@ test.describe('เข้าสู่ระบบ / ออกจากระบ�
     await login(page, 'FR');
     await expect(page).toHaveURL(/\/setup/);
     await page.getByLabel('รหัสผ่านเริ่มต้นที่ได้รับ').fill(PASSWORD);
+    // ทั้ง 3 ช่องกดแสดง/ซ่อนรหัสได้
+    const eyes = page.getByRole('button', { name: 'แสดงรหัสผ่าน' });
+    await expect(eyes).toHaveCount(3);
+    await eyes.first().click();
+    await expect(page.getByLabel('รหัสผ่านเริ่มต้นที่ได้รับ')).toHaveAttribute('type', 'text');
+    await page.getByRole('button', { name: 'ซ่อนรหัสผ่าน' }).click();
+    await expect(page.getByLabel('รหัสผ่านเริ่มต้นที่ได้รับ')).toHaveAttribute('type', 'password');
     await page.getByLabel('รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)').fill('12345678');
     await page.getByLabel('ยืนยันรหัสผ่านใหม่').fill('12345678');
     await page.getByRole('button', { name: 'บันทึกรหัสผ่าน' }).click();

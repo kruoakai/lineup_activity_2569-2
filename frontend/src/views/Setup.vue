@@ -7,11 +7,11 @@
       <h2>1. ตั้งรหัสผ่านใหม่</h2>
       <div v-if="error" class="alert bad">{{ error }}</div>
       <label class="field"><span>รหัสผ่านเริ่มต้นที่ได้รับ</span>
-        <input v-model="current" type="password" autocomplete="current-password" required /></label>
+        <PasswordInput v-model="current" autocomplete="current-password" required /></label>
       <label class="field"><span>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</span>
-        <input v-model="next" type="password" autocomplete="new-password" minlength="8" required /></label>
+        <PasswordInput v-model="next" autocomplete="new-password" minlength="8" required /></label>
       <label class="field"><span>ยืนยันรหัสผ่านใหม่</span>
-        <input v-model="confirm" type="password" autocomplete="new-password" required /></label>
+        <PasswordInput v-model="confirm" autocomplete="new-password" required /></label>
       <button class="btn primary block" :disabled="busy">บันทึกรหัสผ่าน</button>
     </form>
 
@@ -36,6 +36,7 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, auth } from '../api';
+import PasswordInput from '../components/PasswordInput.vue';
 
 const route = useRoute();
 const router = useRouter();

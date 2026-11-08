@@ -6,9 +6,9 @@
       <div v-if="done" class="alert ok">{{ done }}</div>
       <template v-if="!done">
         <label class="field"><span>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</span>
-          <input v-model="pw" type="password" autocomplete="new-password" minlength="8" required /></label>
+          <PasswordInput v-model="pw" autocomplete="new-password" minlength="8" required /></label>
         <label class="field"><span>ยืนยันรหัสผ่านใหม่</span>
-          <input v-model="pw2" type="password" autocomplete="new-password" required /></label>
+          <PasswordInput v-model="pw2" autocomplete="new-password" required /></label>
         <button class="btn primary block" :disabled="busy">บันทึกรหัสผ่านใหม่</button>
       </template>
       <router-link class="btn block" to="/login">ไปหน้าเข้าสู่ระบบ</router-link>
@@ -17,6 +17,7 @@
 </template>
 
 <script setup>
+import PasswordInput from '../components/PasswordInput.vue';
 import { ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '../api';

@@ -21,8 +21,8 @@
       <button v-if="record.status === 'pending' && state.phase === 'open'" class="btn block" :disabled="busy" @click="checkIn()">ลองเช็กชื่อด้วย GPS อีกครั้ง</button>
       <p class="small muted" style="margin:8px 0 0">รูปหลักฐาน {{ record.photo_count || 0 }}/3 รูป</p>
       <div v-if="(record.photo_count || 0) < 3 && state.phase !== 'no_assembly'" class="stack" style="text-align:left;margin-top:6px">
-        <details>
-          <summary class="small">📷 แนบรูปหลักฐานเพิ่ม</summary>
+        <details class="more-photo">
+          <summary>📷 แนบรูปหลักฐานเพิ่ม</summary>
           <div class="stack" style="margin-top:8px">
             <PhotoPicker v-model="extraPhotos" :max="3 - (record.photo_count || 0)" capture />
             <button class="btn primary" :disabled="!extraPhotos.length || busy" @click="uploadExtra">อัปโหลดรูป</button>
@@ -41,11 +41,18 @@
         <span v-if="!busy">แตะเพื่อ<br />เช็กชื่อเข้าแถว</span>
         <span v-else>{{ busyText }}</span>
       </button>
-      <p class="small muted">ระบบจะอ่านตำแหน่งของท่าน ณ เวลานี้เท่านั้น</p>
-      <details class="photos-opt">
-        <summary class="small">📷 แนบรูปหลักฐานไปพร้อมการเช็กชื่อ (ไม่บังคับ)</summary>
-        <PhotoPicker v-model="photos" capture />
-      </details>
+      <p class="small muted" style="margin:0 0 14px">{{ state.checkMode === 'none' ? 'แตะปุ่มเดียวก็เช็กชื่อได้' : 'ระบบจะอ่านตำแหน่งของท่าน ณ เวลานี้เท่านั้น' }}</p>
+      <div class="actions">
+        <button type="button" class="act" :disabled="busy" @click="scanning = true">
+          <span class="ai qr" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><rect x="8" y="8" width="8" height="8" rx="1" /></svg></span>
+          <span class="at"><b>สแกน QR</b><small>ที่จุดเข้าแถว</small></span>
+        </button>
+        <button type="button" class="act" :class="{ on: showPhotos || photos.length }" :aria-expanded="showPhotos" @click="showPhotos = !showPhotos">
+          <span class="ai cam" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.5" /></svg><i v-if="photos.length" class="cnt">{{ photos.length }}</i></span>
+          <span class="at"><b>แนบรูป</b><small>{{ photos.length ? `เลือกแล้ว ${photos.length} รูป` : 'หลักฐาน (ไม่บังคับ)' }}</small></span>
+        </button>
+      </div>
+      <div v-if="showPhotos" class="photos-opt"><PhotoPicker v-model="photos" capture /></div>
       <p v-if="pos" class="small">พิกัดล่าสุด: ความแม่นยำ ±{{ Math.round(pos.accuracy) }} ม.
         <template v-if="distance !== null"> · ห่างจุดเข้าแถว {{ distance }} ม.</template></p>
     </section>
@@ -54,10 +61,10 @@
     <section v-if="review" class="card stack">
       <div class="alert warn"><b>ยังเช็กชื่อไม่สำเร็จ</b><br />{{ review.message }}</div>
       <button class="btn block" :disabled="busy" @click="checkIn()">ลองอีกครั้ง</button>
-      <details>
-        <summary><b>สแกน QR Code ที่จุดเข้าแถว</b></summary>
-        <p class="small">เปิด <b>กล้องมือถือ</b> แล้วสแกน QR บนจอที่จุดเข้าแถว ระบบจะเปิดหน้านี้และเช็กชื่อให้อัตโนมัติ</p>
-      </details>
+      <button type="button" class="btn block scan-btn" :disabled="busy" @click="scanning = true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><rect x="8" y="8" width="8" height="8" rx="1" /></svg>
+        สแกน QR Code ที่จุดเข้าแถว
+      </button>
       <details :open="review.geo !== 'out_of_zone'">
         <summary><b>ส่งคำขอให้เจ้าหน้าที่ตรวจสอบ</b></summary>
         <div class="stack" style="margin-top:10px">
@@ -68,6 +75,8 @@
         </div>
       </details>
     </section>
+
+    <QrScanner v-if="scanning" @close="scanning = false" @token="onScan" />
 
     <div v-if="error" class="alert bad">{{ error }}</div>
     <div v-if="message" class="alert ok">{{ message }}</div>
@@ -95,6 +104,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { api, auth } from '../api';
 import { STATUS, METHOD, thaiDate, thaiTime, deviceId, getBestPosition, distanceMeters } from '../util';
 import PhotoPicker from '../components/PhotoPicker.vue';
+import QrScanner from '../components/QrScanner.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -109,6 +119,8 @@ const review = ref(null);
 const note = ref('');
 const photos = ref([]);
 const extraPhotos = ref([]);
+const scanning = ref(false);
+const showPhotos = ref(false);
 const toSign = ref(0);
 const pos = ref(null);
 const qrToken = ref(null);
@@ -157,6 +169,13 @@ async function load() {
   }
 }
 
+function onScan(token) {
+  scanning.value = false;
+  qrToken.value = token;
+  sessionStorage.setItem('lineup_qr', token);
+  checkIn();
+}
+
 async function uploadExtra() {
   busy.value = true;
   error.value = '';
@@ -201,6 +220,7 @@ async function checkIn(extra = {}) {
       return;
     }
     review.value = null;
+    showPhotos.value = false;
     if (r.alreadyChecked) { message.value = r.message; photos.value = []; await load(); return; }
     photos.value = [];
     qrToken.value = null;
@@ -260,7 +280,27 @@ onUnmounted(() => clearInterval(timer));
 .result { text-align: center; }
 .result .big { width: 64px; height: 64px; margin: 0 auto 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; color: #fff; }
 .result.ok .big { background: var(--ok); } .result.warn .big { background: var(--warn); } .result.info .big, .result.info2 .big, .result.muted .big { background: var(--info); } .result.bad .big { background: var(--bad); }
-.photos-opt { text-align: left; margin-top: 8px; }
-.photos-opt summary { cursor: pointer; }
+.photos-opt { text-align: left; margin-top: 12px; padding: 12px; border-radius: 14px; background: var(--bg); border: 1px dashed var(--line); }
 summary { cursor: pointer; padding: 6px 0; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+.act { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 10px 12px; border-radius: 16px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); font: inherit; cursor: pointer; box-shadow: 0 2px 6px rgba(15, 42, 74, .06); transition: transform .1s, border-color .15s, box-shadow .15s; }
+.act:hover, .act:focus-visible { border-color: var(--brand-2); box-shadow: 0 4px 14px rgba(29, 78, 137, .14); }
+.act:active { transform: scale(.97); }
+.act:disabled { opacity: .6; }
+.act.on { border-color: var(--brand-2); background: var(--info-bg); }
+.ai { position: relative; flex: none; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+.ai svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.ai.qr { background: linear-gradient(135deg, #1d4e89, #2f6fb8); color: #fff; }
+.ai.cam { background: linear-gradient(135deg, #0f9d74, #34c38f); color: #fff; }
+.cnt { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--bad); color: #fff; font-size: .72rem; font-style: normal; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--card); }
+.at { display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; line-height: 1.3; }
+.at b { white-space: nowrap; }
+.at b { font-size: 1rem; }
+.at small { color: var(--muted); font-size: .78rem; }
+.scan-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.scan-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.more-photo summary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-weight: 600; font-size: .9rem; list-style: none; }
+.more-photo summary::-webkit-details-marker { display: none; }
+@media (max-width: 360px) { .actions { grid-template-columns: 1fr; } }
 </style>

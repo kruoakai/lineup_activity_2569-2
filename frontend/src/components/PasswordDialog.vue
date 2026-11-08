@@ -4,7 +4,7 @@
       <h2 style="margin:0">{{ pwDialog.title }}</h2>
       <p v-if="pwDialog.detail" class="small" :class="pwDialog.danger ? 'alert bad' : 'muted'" style="white-space:pre-line">{{ pwDialog.detail }}</p>
       <label class="field"><span>รหัสผ่านของท่าน</span>
-        <input ref="input" v-model="pw" type="password" autocomplete="current-password" required /></label>
+        <PasswordInput ref="input" v-model="pw" autocomplete="current-password" required /></label>
       <div class="row">
         <button type="button" class="btn grow" @click="cancel">ยกเลิก</button>
         <button class="btn grow" :class="pwDialog.danger ? 'dangerfill' : 'primary'">ยืนยัน</button>
@@ -16,6 +16,7 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue';
 import { pwDialog, closePassword } from '../confirm';
+import PasswordInput from './PasswordInput.vue';
 
 const pw = ref('');
 const input = ref(null);

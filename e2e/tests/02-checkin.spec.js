@@ -5,6 +5,13 @@ test.describe('เช็กชื่อเข้าแถว (โหมดกด
   test('ครูกดเช็กชื่อ ได้ "มาเข้าแถว" และไม่ซ้ำเมื่อโหลดใหม่', async ({ page }) => {
     await login(page, 'T3');
     await expect(page.locator('.phase')).toContainText('เปิดเช็กชื่อ');
+    // ปุ่มสแกน QR และปุ่มแนบรูป (กดแล้วแสดงช่องเลือกรูป)
+    await expect(page.getByRole('button', { name: /สแกน QR/ })).toBeVisible();
+    const attach = page.getByRole('button', { name: /แนบรูป/ });
+    await expect(attach).toHaveAttribute('aria-expanded', 'false');
+    await attach.click();
+    await expect(attach).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('.photos-opt')).toBeVisible();
     await page.locator('button.checkin').click();
     const result = page.locator('section.result');
     await expect(result).toContainText('มาเข้าแถว');
