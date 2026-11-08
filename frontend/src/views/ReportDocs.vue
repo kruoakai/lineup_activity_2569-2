@@ -22,7 +22,7 @@
       <li v-for="d in shown" :key="d.id" @click="$router.push(`/report-docs/${d.id}`)">
         <div class="main">
           <strong>{{ d.title }}</strong>
-          <span class="small muted">{{ thaiDate(d.period_from, false) }} – {{ thaiDate(d.period_to, false) }} · สร้างโดย {{ d.created_by_name }}
+          <span class="small muted">{{ thaiRange(d.period_from, d.period_to) }} · สร้างโดย {{ d.created_by_name }}
             <template v-if="d.waitingFor"> · รอ {{ d.waitingFor }}</template></span>
         </div>
         <span v-if="d.is_demo" class="badge muted">จำลอง</span>
@@ -38,7 +38,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api';
-import { thaiDate, serverToday, weekStart, addDays } from '../util';
+import { thaiDate, thaiRange, serverToday, weekStart, addDays } from '../util';
 
 const router = useRouter();
 const STATUS_TXT = { pending: 'รอลงนาม', approved: 'อนุมัติแล้ว', returned: 'ส่งกลับแก้ไข' };

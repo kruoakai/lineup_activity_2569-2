@@ -120,7 +120,7 @@ async function create(user, { from, to, title }) {
   const snapshot = await officialReport({ from, to });
   if (!snapshot.days.length) throw new HttpError(400, 'ช่วงวันที่ที่เลือกไม่มีวันเข้าแถว');
   const steps = await signerSteps();
-  const t = String(title || '').trim().slice(0, 255) || `${snapshot.title} ระหว่างวันที่ ${from} ถึง ${to}`;
+  const t = String(title || '').trim().slice(0, 255) || `${snapshot.title} ${from === to ? 'วันที่' : 'ระหว่างวันที่'} ${require('./thaiDate').range(from, to)}`;
   const json = JSON.stringify(snapshot);
   const hash = crypto.createHash('sha256').update(json).digest('hex');
   const r = await db.query(

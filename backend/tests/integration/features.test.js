@@ -465,6 +465,7 @@ describe('ผู้ลงนาม: ตำแหน่ง บทบาท แล
     expect(doc.status).toBe(201);
     const g = await api(tok.ADM).get(`/api/report-docs/${doc.body.id}`).expect(200);
     expect(g.body.accounts[ids.s1]).toHaveProperty('ready');
+    expect(g.body.title).toMatch(/ระหว่างวันที่ 7–11 ธันวาคม 2569$/);
     const other = await api(tok.S1).get(`/api/report-docs/${doc.body.id}`).expect(200);
     expect(other.body.accounts).toBeUndefined();
     expect(other.body.canSign).toBe(true);
@@ -483,5 +484,16 @@ describe('แบ่งหน้าที่: ผู้ลงนาม/ผู้�
     await api(tok.S1).post('/api/report-docs').send({ from: '2026-12-14', to: '2026-12-18' }).expect(403);
     r = await api(tok.ACT).get('/api/report-docs').expect(200);
     expect(r.body.canCreate).toBe(true);
+  });
+});
+
+describe('ย้ายชื่อเอกสารเดิมเป็นวันที่แบบไทย', () => {
+  test('migration แปลงชื่อที่ระบบตั้งแบบเดิม ไม่แตะชื่อที่ผู้ใช้ตั้งเอง', async () => {
+    const [d] = await h.db.query('SELECT id FROM report_docs LIMIT 1');
+    await h.db.query('UPDATE report_docs SET title = ? WHERE id = ?', ['แบบบันทึก ระหว่างวันที่ 2026-10-26 ถึง 2026-10-30', d.id]);
+    const { MIGRATIONS } = require('../../scripts/migrate');
+    await MIGRATIONS.find((m) => m.id === '2026-11-08-12-thai-doc-titles').after();
+    const [after] = await h.db.query('SELECT title FROM report_docs WHERE id = ?', [d.id]);
+    expect(after.title).toBe('แบบบันทึก ระหว่างวันที่ 26–30 ตุลาคม 2569');
   });
 });

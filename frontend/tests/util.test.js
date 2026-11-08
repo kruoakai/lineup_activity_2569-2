@@ -1,7 +1,7 @@
 // Unit tests ฝั่งหน้าเว็บ (node --test) — ฟังก์ชันจัดรูปแบบวันเวลาและระยะทาง
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { thaiDate, thaiTime, addDays, weekStart, distanceMeters, STATUS, METHOD } from '../src/util.js';
+import { thaiDate, thaiRange, thaiTime, addDays, weekStart, distanceMeters, STATUS, METHOD } from '../src/util.js';
 
 test('thaiDate แสดงวันแบบไทย พ.ศ. 2 หลัก', () => {
   assert.equal(thaiDate('2026-11-16'), 'จ. 16 พ.ย. 69');
@@ -30,4 +30,11 @@ test('distanceMeters ตรงกับฝั่งเซิร์ฟเวอ�
 test('ทุกวิธีเช็กชื่อและทุกสถานะมีป้ายภาษาไทย', () => {
   for (const m of ['self_gps', 'self_qr', 'self_tap', 'proxy_dept', 'proxy_peer', 'proxy_activity', 'admin']) assert.ok(METHOD[m], m);
   for (const s of ['present', 'absent', 'official', 'policy', 'leave', 'pending']) assert.ok(STATUS[s]?.label, s);
+});
+
+test('thaiRange ช่วงวันที่แบบสั้น', () => {
+  assert.equal(thaiRange('2026-10-26', '2026-10-30'), '26–30 ต.ค. 69');
+  assert.equal(thaiRange('2026-10-28', '2026-11-03'), '28 ต.ค. – 3 พ.ย. 69');
+  assert.equal(thaiRange('2026-12-28', '2027-01-08'), '28 ธ.ค. 69 – 8 ม.ค. 70');
+  assert.equal(thaiRange('2026-10-26', '2026-10-26'), '26 ต.ค. 69');
 });

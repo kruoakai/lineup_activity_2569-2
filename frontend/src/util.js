@@ -51,6 +51,18 @@ export function thaiDate(day, withWeekday = true) {
   return `${withWeekday ? `${TH_DAY[wd]} ` : ''}${d} ${TH_MONTH[m - 1]} ${String(y + 543).slice(-2)}`;
 }
 
+// ช่วงวันที่แบบสั้น: 26–30 ต.ค. 69 · 28 ต.ค. – 3 พ.ย. 69 · วันเดียว = 26 ต.ค. 69
+export function thaiRange(from, to) {
+  if (!from) return '';
+  if (!to || from === to) return thaiDate(from, false);
+  const [y1, m1, d1] = from.split('-').map(Number);
+  const [y2, m2, d2] = to.split('-').map(Number);
+  const yy = (y) => String(y + 543).slice(-2);
+  if (y1 === y2 && m1 === m2) return `${d1}–${d2} ${TH_MONTH[m1 - 1]} ${yy(y1)}`;
+  if (y1 === y2) return `${d1} ${TH_MONTH[m1 - 1]} – ${d2} ${TH_MONTH[m2 - 1]} ${yy(y2)}`;
+  return `${thaiDate(from, false)} – ${thaiDate(to, false)}`;
+}
+
 // เวลา (ISO UTC) -> HH:MM ตามเวลาไทย
 export function thaiTime(iso) {
   if (!iso) return '';

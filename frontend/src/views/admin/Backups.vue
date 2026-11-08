@@ -50,7 +50,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
 import { api, postDownload } from '../../api';
-import { serverToday, addDays } from '../../util';
+import { serverToday, addDays, thaiRange } from '../../util';
 import { askPassword } from '../../confirm';
 
 const data = ref({});
@@ -90,7 +90,7 @@ async function download(f, format) {
 const xFrom = ref('');
 const xTo = ref('');
 async function exportXlsx() {
-  const password = await askPassword('ยืนยันการส่งออกข้อมูล', { detail: `${xFrom.value} ถึง ${xTo.value} · มีข้อมูลส่วนบุคคล` });
+  const password = await askPassword('ยืนยันการส่งออกข้อมูล', { detail: `${thaiRange(xFrom.value, xTo.value)} · มีข้อมูลส่วนบุคคล` });
   if (!password) return;
   busy.value = true;
   error.value = '';

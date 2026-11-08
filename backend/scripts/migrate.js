@@ -150,6 +150,22 @@ const MIGRATIONS = [
       CONSTRAINT fk_api_key_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`],
   },
+  {
+    id: '2026-11-08-12-thai-doc-titles',
+    // ชื่อเอกสารที่ระบบตั้งให้แบบเดิม "ระหว่างวันที่ 2026-10-26 ถึง 2026-10-30" → "ระหว่างวันที่ 26–30 ตุลาคม 2569"
+    sql: [],
+    after: async () => {
+      const { range } = require('../src/services/thaiDate');
+      const re = / ระหว่างวันที่ (\d{4}-\d{2}-\d{2}) ถึง (\d{4}-\d{2}-\d{2})$/;
+      const docs = await db.query("SELECT id, title FROM report_docs WHERE title LIKE '%ระหว่างวันที่ ____-__-__ ถึง ____-__-__'");
+      for (const d of docs) {
+        const m = re.exec(d.title);
+        if (!m) continue;
+        const words = m[1] === m[2] ? 'วันที่' : 'ระหว่างวันที่';
+        await db.query('UPDATE report_docs SET title = ? WHERE id = ?', [d.title.replace(re, ` ${words} ${range(m[1], m[2])}`), d.id]);
+      }
+    },
+  },
 ];
 
 async function migrate() {

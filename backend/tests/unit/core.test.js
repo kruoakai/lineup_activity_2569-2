@@ -219,3 +219,14 @@ describe('lineAuth', () => {
     await expect(line.finish({ code: 'x', state, cookie: `${body}.AAAA` })).rejects.toMatchObject({ code: 'LINE_STATE' });
   });
 });
+
+describe('thaiDate (วันที่แบบไทยในเอกสาร)', () => {
+  const td = require('../../src/services/thaiDate');
+  test('วันเดียว / เดือนเดียวกัน / ข้ามเดือน / ข้ามปี', () => {
+    expect(td.long('2026-10-26')).toBe('26 ตุลาคม 2569');
+    expect(td.range('2026-10-26', '2026-10-26')).toBe('26 ตุลาคม 2569');
+    expect(td.range('2026-10-26', '2026-10-30')).toBe('26–30 ตุลาคม 2569');
+    expect(td.range('2026-10-28', '2026-11-03')).toBe('28 ตุลาคม – 3 พฤศจิกายน 2569');
+    expect(td.range('2026-12-28', '2027-01-08')).toBe('28 ธันวาคม 2569 – 8 มกราคม 2570');
+  });
+});

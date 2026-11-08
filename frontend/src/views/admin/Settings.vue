@@ -7,7 +7,7 @@
     <!-- สถานะจริงของวันนี้ + วันที่ปฏิทินตั้งทับวันในสัปดาห์ -->
     <section v-if="today" class="card stack today" :class="today.phase === 'open' ? 'is-open' : 'is-off'">
       <div class="row">
-        <strong class="grow">วันนี้ ({{ today.day }} · {{ today.serverTime?.slice(0, 5) }} น.)</strong>
+        <strong class="grow">วันนี้ ({{ thaiDate(today.day) }} · {{ today.serverTime?.slice(0, 5) }} น.)</strong>
         <span class="badge" :class="today.phase === 'open' ? 'ok' : 'warn'">{{ PHASE[today.phase] }}</span>
       </div>
       <p v-if="today.daySource === 'calendar' && !['normal', 'special'].includes(today.dayStatus)" class="small" style="margin:0">
@@ -15,7 +15,7 @@
       </p>
       <ul v-if="overrides.length" class="list small">
         <li v-for="o in overrides" :key="o.day">
-          <div class="main"><b>{{ o.day }}</b> · {{ DAY_STATUS[o.status] }}<template v-if="o.note"> · {{ o.note }}</template></div>
+          <div class="main"><b>{{ thaiDate(o.day) }}</b> · {{ DAY_STATUS[o.status] }}<template v-if="o.note"> · {{ o.note }}</template></div>
           <button type="button" class="btn sm" :disabled="busy" @click="clearOverride(o.day)">ยกเลิกการตั้งนี้</button>
         </li>
       </ul>
@@ -97,6 +97,7 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import { api } from '../../api';
+import { thaiDate } from '../../util';
 import MapPicker from '../../components/MapPicker.vue';
 
 const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];

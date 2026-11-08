@@ -37,7 +37,7 @@ function addSummarySheets(wb, rep) {
   ov.columns = [{ width: 34 }, { width: 18 }];
   const lines = [
     ['รายงานการเข้าแถว วิทยาลัยเทคนิคชัยภูมิ', ''],
-    ['ช่วงวันที่', `${rep.from} ถึง ${rep.to}`],
+    ['ช่วงวันที่', require('./thaiDate').range(rep.from, rep.to)],
     ['จำนวนวันเข้าแถว', rep.days],
     ['บุคลากรที่ต้องเข้าแถว (คน)', rep.total.members],
     ...COUNT_COLS.map(([k, h]) => [k === 'rate' ? 'ร้อยละการเข้าแถวภาพรวมทั้งวิทยาลัย' : h, rep.total[k] ?? '']),
