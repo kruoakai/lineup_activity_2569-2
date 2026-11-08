@@ -1,0 +1,37 @@
+# ---------- ห้ามขึ้น Git: ความลับ ----------
+.env
+*.env
+!*.env.example
+deploy/.env
+deploy/keys/
+deploy/certs/
+deploy/letsencrypt/
+deploy/certbot-www/
+deploy/.seeded
+
+# ---------- ห้ามขึ้น Git: ข้อมูลส่วนบุคคล ----------
+backend/data/personnel.json
+initial-passwords.csv
+*.csv
+*.xlsx
+backend/uploads/
+deploy/backups/
+# รูปลายเซ็น/รูปบุคคลที่วางไว้ในโฟลเดอร์หลัก
+/*.png
+/*.jpg
+
+# เอกสารอ้างอิงภายใน (เก็บเฉพาะคู่มือ PDF)
+docs/*
+!docs/คู่มือ*.pdf
+docs/ฉบับเก่า/
+
+# ---------- ไฟล์ที่สร้างขึ้นเอง ----------
+node_modules/
+dist/
+backend/coverage/
+e2e/report/
+e2e/test-results/
+.claude/
+*.log
+.DS_Store
+Thumbs.db

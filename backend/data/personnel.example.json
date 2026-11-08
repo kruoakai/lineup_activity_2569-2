@@ -1,0 +1,5 @@
+[
+  { "employee_code": "1001", "full_name": "นายตัวอย่าง ทดสอบ", "email": "teacher1@example.ac.th", "division": "ฝ่ายวิชาการ", "department": "แผนกวิชาเทคโนโลยีสารสนเทศ" },
+  { "employee_code": "1002", "full_name": "นางสาวสมมุติ ใจดี", "email": "teacher2@example.ac.th", "division": "ฝ่ายวิชาการ", "department": "แผนกวิชาการบัญชี" },
+  { "employee_code": "1003", "full_name": "นายทดลอง ระบบ", "email": "", "division": "ฝ่ายพัฒนากิจการนักเรียน นักศึกษา", "department": "งานกิจกรรมนักเรียน นักศึกษา" }
+]

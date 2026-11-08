@@ -1,0 +1,97 @@
+# ระบบเช็กชื่อเข้าแถว — ติดตั้งบน VM (lineup.ccollege.ac.th / 203.113.123.204)
+# ใช้งาน: cd /opt/lineup/deploy && docker compose up -d --build
+name: lineup
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=+00:00"]
+    environment:
+      MYSQL_DATABASE: lineup
+      MYSQL_USER: lineup
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      TZ: UTC
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: lineup
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: lineup
+      JWT_SECRET: ${JWT_SECRET}
+      QR_SECRET: ${QR_SECRET}
+      COOKIE_SECURE: "true"
+      TZ: Asia/Bangkok
+      APP_URL: https://${DOMAIN}
+      BACKUP_DIR: /backups
+      INITIAL_PASSWORD: ${INITIAL_PASSWORD:-12345678}
+      LINE_CHANNEL_ID: ${LINE_CHANNEL_ID:-}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - uploads:/app/uploads
+      - ./backups:/backups
+    networks: [internal]
+
+  # สำรองฐานข้อมูลอัตโนมัติ 00:00 น. หลังวันทำการ (อ.–ส.) และเมื่อผู้ดูแลกด "สำรองตอนนี้"
+  backup:
+    image: mysql:8.4
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["bash", "/run.sh"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      TZ: Asia/Bangkok
+      BACKUP_DAYS: "2,3,4,5,6"
+      BACKUP_KEEP_DAYS: "60"
+    volumes:
+      - ./backup/run.sh:/run.sh:ro
+      - ./backups:/backups
+      - uploads:/uploads:ro
+    networks: [internal]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./certbot-www:/var/www/certbot:ro
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  db-data:
+  uploads:

@@ -1,0 +1,266 @@
+<template>
+  <div>
+    <div v-if="loadError" class="alert bad">{{ loadError }} <button class="btn sm" @click="load">ลองใหม่</button></div>
+
+    <section v-if="state" class="card hero">
+      <p class="muted small">{{ greeting }} · {{ thaiDate(state.day) }}</p>
+      <div class="clock">{{ clock }}</div>
+      <p class="phase" :class="phaseCls">{{ phaseText }}</p>
+    </section>
+
+    <!-- ผลวันนี้ -->
+    <section v-if="record" class="card result" :class="STATUS[record.status].cls">
+      <div class="big">{{ record.status === 'present' ? '✓' : record.status === 'pending' ? '…' : 'i' }}</div>
+      <h2>{{ STATUS[record.status].label }}</h2>
+      <p class="small">
+        {{ METHOD[record.method] }} เวลา {{ thaiTime(record.checked_at) }} น.
+        <template v-if="record.checked_by !== auth.user.id"><br /><b>{{ ['proxy_activity','admin'].includes(record.method) ? 'บันทึกโดย' : 'เช็กแทนโดย' }} {{ record.checked_by_name }}</b></template>
+        <template v-if="record.distance_m !== null"><br />ระยะจากจุดเข้าแถว {{ record.distance_m }} ม.</template>
+      </p>
+      <p v-if="record.note" class="small muted">หมายเหตุ: {{ record.note }}</p>
+      <button v-if="record.status === 'pending' && state.phase === 'open'" class="btn block" :disabled="busy" @click="checkIn()">ลองเช็กชื่อด้วย GPS อีกครั้ง</button>
+      <p class="small muted" style="margin:8px 0 0">รูปหลักฐาน {{ record.photo_count || 0 }}/3 รูป</p>
+      <div v-if="(record.photo_count || 0) < 3 && state.phase !== 'no_assembly'" class="stack" style="text-align:left;margin-top:6px">
+        <details>
+          <summary class="small">📷 แนบรูปหลักฐานเพิ่ม</summary>
+          <div class="stack" style="margin-top:8px">
+            <PhotoPicker v-model="extraPhotos" :max="3 - (record.photo_count || 0)" capture />
+            <button class="btn primary" :disabled="!extraPhotos.length || busy" @click="uploadExtra">อัปโหลดรูป</button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ปุ่มเช็กชื่อ -->
+    <section v-if="state && !auth.user.must_assemble" class="alert info">
+      บัญชีนี้ไม่อยู่ในเกณฑ์ต้องเข้าแถว — ใช้เมนูด้านล่างเพื่อดูรายชื่อ รายงาน หรือแสดง QR
+    </section>
+    <section v-else-if="state && !record && state.phase === 'open'" class="card center">
+      <div v-if="qrToken" class="alert info">สแกน QR จุดเข้าแถวแล้ว — แตะปุ่มด้านล่างเพื่อยืนยัน</div>
+      <button class="checkin" :disabled="busy" @click="checkIn()">
+        <span v-if="!busy">แตะเพื่อ<br />เช็กชื่อเข้าแถว</span>
+        <span v-else>{{ busyText }}</span>
+      </button>
+      <p class="small muted">ระบบจะอ่านตำแหน่งของท่าน ณ เวลานี้เท่านั้น</p>
+      <details class="photos-opt">
+        <summary class="small">📷 แนบรูปหลักฐานไปพร้อมการเช็กชื่อ (ไม่บังคับ)</summary>
+        <PhotoPicker v-model="photos" capture />
+      </details>
+      <p v-if="pos" class="small">พิกัดล่าสุด: ความแม่นยำ ±{{ Math.round(pos.accuracy) }} ม.
+        <template v-if="distance !== null"> · ห่างจุดเข้าแถว {{ distance }} ม.</template></p>
+    </section>
+
+    <!-- เช็กไม่ผ่าน -->
+    <section v-if="review" class="card stack">
+      <div class="alert warn"><b>ยังเช็กชื่อไม่สำเร็จ</b><br />{{ review.message }}</div>
+      <button class="btn block" :disabled="busy" @click="checkIn()">ลองอีกครั้ง</button>
+      <details>
+        <summary><b>สแกน QR Code ที่จุดเข้าแถว</b></summary>
+        <p class="small">เปิด <b>กล้องมือถือ</b> แล้วสแกน QR บนจอที่จุดเข้าแถว ระบบจะเปิดหน้านี้และเช็กชื่อให้อัตโนมัติ</p>
+      </details>
+      <details :open="review.geo !== 'out_of_zone'">
+        <summary><b>ส่งคำขอให้เจ้าหน้าที่ตรวจสอบ</b></summary>
+        <div class="stack" style="margin-top:10px">
+          <label class="field"><span>หมายเหตุ (เช่น ยืนอยู่บริเวณใด)</span><textarea v-model="note" maxlength="300" /></label>
+          <span class="small muted">รูปถ่ายประกอบ ณ จุดเข้าแถว</span>
+          <PhotoPicker v-model="photos" capture />
+          <button class="btn primary block" :disabled="busy" @click="checkIn({ requestReview: true })">ส่งคำขอตรวจสอบ</button>
+        </div>
+      </details>
+    </section>
+
+    <div v-if="error" class="alert bad">{{ error }}</div>
+    <div v-if="message" class="alert ok">{{ message }}</div>
+
+    <router-link v-if="toSign > 0" to="/report-docs" class="card row sign-banner">
+      <span style="font-size:1.6rem">📝</span>
+      <span class="grow"><b>มีเอกสารรอท่านลงนาม {{ toSign }} ฉบับ</b><br /><span class="small muted">แตะเพื่อเปิดเอกสารและลงนาม</span></span>
+      <span>›</span>
+    </router-link>
+
+    <section v-if="state && (auth.user.can_proxy || auth.user.peer_check) && !['admin','activity'].includes(auth.user.role)" class="card row small">
+      <span class="badge info">{{ auth.user.can_proxy ? 'ตัวแทนเช็กชื่อแผนก' : 'เช็กแทนกันในแผนกได้' }}</span>
+      <router-link to="/roster" class="grow">เช็กชื่อให้เพื่อนใน{{ auth.user.department_name || 'แผนก' }} ›</router-link>
+    </section>
+
+    <section v-if="state && state.phase === 'open' && !state.geofence && state.checkMode !== 'none'" class="alert warn small">
+      ผู้ดูแลระบบยังไม่ได้กำหนดพื้นที่เข้าแถว ระบบจะส่งการเช็กชื่อให้เจ้าหน้าที่ตรวจสอบ
+    </section>
+  </div>
+</template>
+
+<script setup>
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { api, auth } from '../api';
+import { STATUS, METHOD, thaiDate, thaiTime, deviceId, getBestPosition, distanceMeters } from '../util';
+import PhotoPicker from '../components/PhotoPicker.vue';
+
+const route = useRoute();
+const router = useRouter();
+const state = ref(null);
+const record = computed(() => state.value?.record || null);
+const loadError = ref('');
+const busy = ref(false);
+const busyText = ref('');
+const error = ref('');
+const message = ref('');
+const review = ref(null);
+const note = ref('');
+const photos = ref([]);
+const extraPhotos = ref([]);
+const toSign = ref(0);
+const pos = ref(null);
+const qrToken = ref(null);
+const offset = ref(0);
+const clock = ref('');
+let timer;
+
+const greeting = computed(() => {
+  const h = Number(clock.value.slice(0, 2));
+  return h < 12 ? 'สวัสดีตอนเช้า' : h < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
+});
+
+const phaseText = computed(() => {
+  const s = state.value;
+  if (!s) return '';
+  return {
+    open: `เปิดเช็กชื่อ ${s.openTime}–${s.closeTime} น.${s.dayStatus === 'special' ? ` · กิจกรรมพิเศษ${s.dayNote ? `: ${s.dayNote}` : ''}` : ''}`,
+    before: `ยังไม่ถึงเวลา — เปิดเช็กชื่อ ${s.openTime} น.`,
+    closed: `ปิดการเช็กชื่อแล้ว (${s.closeTime} น.)`,
+    no_assembly: `วันนี้ไม่มีการเข้าแถว${s.daySource === 'calendar' ? ` · ${{ cancelled: 'งดเข้าแถวตามปฏิทินกิจกรรม', holiday: 'วันหยุดตามปฏิทิน', public_holiday: 'วันหยุดนักขัตฤกษ์' }[s.dayStatus] || ''}` : ''}${s.dayNote ? ` · ${s.dayNote}` : ''}`,
+  }[s.phase];
+});
+const phaseCls = computed(() => ({ open: 'ok', before: 'warn', closed: 'bad', no_assembly: 'muted' }[state.value?.phase]));
+
+const distance = computed(() => {
+  if (!pos.value || !state.value?.geofence) return null;
+  return Math.round(distanceMeters(pos.value, state.value.geofence));
+});
+
+function tick() {
+  const d = new Date(Date.now() + offset.value + 7 * 3600_000);
+  clock.value = d.toISOString().slice(11, 19);
+}
+
+async function load() {
+  loadError.value = '';
+  try {
+    const s = await api('/api/attendance/state');
+    // ใช้เวลาเซิร์ฟเวอร์เป็นหลัก
+    const [hh, mm, ss] = s.serverTime.split(':').map(Number);
+    const server = Date.parse(`${s.day}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+07:00`);
+    offset.value = server - Date.now();
+    state.value = s;
+  } catch (e) {
+    loadError.value = e.message;
+  }
+}
+
+async function uploadExtra() {
+  busy.value = true;
+  error.value = '';
+  try {
+    await api(`/api/attendance/${record.value.id}/photos`, { method: 'POST', body: { photos: extraPhotos.value } });
+    extraPhotos.value = [];
+    message.value = 'อัปโหลดรูปแล้ว';
+    await load();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function checkIn(extra = {}) {
+  busy.value = true;
+  error.value = '';
+  message.value = '';
+  try {
+    busyText.value = 'กำลังอ่านตำแหน่ง…';
+    let loc = null;
+    try {
+      // โหมดกดปุ่มอย่างเดียว: ไม่ต้องอ่านตำแหน่ง
+      if (state.value?.checkMode !== 'none') {
+        loc = await getBestPosition();
+        pos.value = loc;
+      }
+    } catch (e) {
+      if (!qrToken.value && !extra.requestReview) {
+        review.value = { message: e.message, geo: 'no_location' };
+        return;
+      }
+    }
+    busyText.value = 'กำลังบันทึก…';
+    const body = { ...(loc || {}), deviceId: deviceId(), qrToken: qrToken.value || undefined, ...extra };
+    if (extra.requestReview) body.note = note.value;
+    if (photos.value.length) body.photos = photos.value;
+    const r = await api('/api/attendance/check-in', { method: 'POST', body });
+    if (r.needsReview) {
+      review.value = r;
+      return;
+    }
+    review.value = null;
+    if (r.alreadyChecked) { message.value = r.message; photos.value = []; await load(); return; }
+    photos.value = [];
+    qrToken.value = null;
+    sessionStorage.removeItem('lineup_qr');
+    message.value = r.message;
+    if (navigator.vibrate) navigator.vibrate(80);
+    await load();
+  } catch (e) {
+    error.value = e.message;
+    if (e.code === 'QR_INVALID') {
+      qrToken.value = null;
+      sessionStorage.removeItem('lineup_qr');
+    }
+    if (['CLOSED', 'NOT_OPEN', 'NO_ASSEMBLY'].includes(e.code)) await load();
+  } finally {
+    busy.value = false;
+  }
+}
+
+onMounted(async () => {
+  // ลิงก์จาก QR: เก็บ token ไว้ แล้วล้างออกจาก URL
+  const q = typeof route.query.qr === 'string' ? route.query.qr : sessionStorage.getItem('lineup_qr');
+  if (q) {
+    qrToken.value = q;
+    sessionStorage.setItem('lineup_qr', q);
+    if (route.query.qr) router.replace({ path: '/' });
+  }
+  await load();
+  api('/api/report-docs/pending-count').then((r) => { toSign.value = r.count; }).catch(() => {});
+  tick();
+  timer = setInterval(() => {
+    tick();
+    const s = state.value;
+    // เปลี่ยนช่วงเวลาอัตโนมัติเมื่อถึงเวลาเปิด/ปิด
+    if (s && ((s.phase === 'before' && clock.value >= `${s.openTime}:00`) || (s.phase === 'open' && clock.value > `${s.closeTime}:59`))) load();
+    // ยังไม่ได้เช็กชื่อ: ตรวจทุก 30 วินาที เผื่อมีเพื่อนเช็กแทนให้แล้ว
+    else if (s && s.phase === 'open' && !record.value && !busy.value && clock.value.endsWith('0') && Number(clock.value.slice(6, 8)) % 30 === 0) load();
+  }, 1000);
+  if (qrToken.value && state.value?.phase === 'open' && !record.value) checkIn();
+});
+onUnmounted(() => clearInterval(timer));
+</script>
+
+<style scoped>
+.sign-banner { text-decoration: none; color: inherit; border-left: 4px solid var(--brand-2); align-items: center; gap: 12px; }
+.hero { text-align: center; }
+.clock { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1; }
+.phase { margin: 6px 0 0; font-weight: 600; }
+.phase.ok { color: var(--ok); } .phase.warn { color: var(--warn); } .phase.bad { color: var(--bad); } .phase.muted { color: var(--muted); }
+.checkin {
+  width: 220px; height: 220px; border-radius: 50%; border: 0; margin: 10px auto 14px; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 30% 30%, #3b82d6, var(--brand)); color: #fff; font: inherit; font-size: 1.35rem; font-weight: 700; line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(29, 78, 137, .35), inset 0 -6px 0 rgba(0,0,0,.12); cursor: pointer;
+}
+.checkin:active { transform: scale(.97); }
+.checkin:disabled { opacity: .8; }
+.result { text-align: center; }
+.result .big { width: 64px; height: 64px; margin: 0 auto 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; color: #fff; }
+.result.ok .big { background: var(--ok); } .result.warn .big { background: var(--warn); } .result.info .big, .result.info2 .big, .result.muted .big { background: var(--info); } .result.bad .big { background: var(--bad); }
+.photos-opt { text-align: left; margin-top: 8px; }
+.photos-opt summary { cursor: pointer; }
+summary { cursor: pointer; padding: 6px 0; }
+</style>
