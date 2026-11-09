@@ -34,6 +34,20 @@ export async function refresh() {
   return refreshing;
 }
 
+export async function reloadFresh() {
+  try {
+    const last = Number(sessionStorage.getItem('fresh-reload') || 0);
+    if (Date.now() - last < 60000) return;
+    sessionStorage.setItem('fresh-reload', String(Date.now()));
+  } catch { /* ไม่มี storage ก็โหลดใหม่ได้ */ }
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations()) || [];
+    await Promise.all(regs.map((r) => r.update().catch(() => {})));
+    if (window.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+  } catch { /* โหลดใหม่ต่อไป */ }
+  location.reload();
+}
+
 export async function api(path, { method = 'GET', body, raw = false } = {}, retry = true) {
   const headers = {};
   if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
@@ -52,6 +66,8 @@ export async function api(path, { method = 'GET', body, raw = false } = {}, retr
     return res;
   }
   const data = await res.json().catch(() => ({}));
+  // เซิร์ฟเวอร์แจ้งว่าหน้าเว็บในเครื่องเก่ากว่าเซิร์ฟเวอร์ → ล้างแคชแอปแล้วโหลดใหม่ (ครั้งเดียวต่อ 1 นาที)
+  if (res.status === 409 && data.code === 'STALE_CLIENT') reloadFresh();
   if (!res.ok) throw new ApiError(res.status, data);
   return data;
 }

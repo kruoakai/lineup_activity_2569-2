@@ -579,6 +579,9 @@ describe('งานบุคลากร: สถานะลา/ราชกา�
     expect(d.body.title).toMatch(/ประจำวันอังคาร ที่ 5 มกราคม พ.ศ. 2570$/);
     expect(d.body.steps[2].decision).toBe(true);
     expect((await api(tok.HR1).post('/api/report-docs').send({ day: D })).body.code).toBe('DUPLICATE');
+    const old = await api(tok.HR1).post('/api/report-docs').send({ from: D, to: D });
+    expect(old.status).toBe(409);
+    expect(old.body.code).toBe('STALE_CLIENT');
     await api(tok.S1).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD, signature: PNG }).expect(200);
     await api(tok.S2).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD }).expect(200);
     let r = await api(tok.S3).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD, signature: PNG });

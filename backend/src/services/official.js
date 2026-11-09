@@ -125,8 +125,12 @@ async function preview(user, day) {
   return { ...r, existingId: (await findDup(day))?.id || null };
 }
 
-async function create(user, { day, title }) {
+async function create(user, { day, from, to, title }) {
   if (!(await canCreate(user))) throw new HttpError(403, 'ไม่มีสิทธิ์สร้างเอกสารเสนอลงนาม');
+  // หน้าเว็บรุ่นเก่า (แบบช่วงวันที่) ยังค้างในเครื่อง → บอกให้โหลดหน้าใหม่แทนข้อความวันที่ไม่ถูกต้อง
+  if (!day && (from || to)) {
+    throw new HttpError(409, 'หน้าเว็บในเครื่องนี้เป็นเวอร์ชันเก่า — กดรีเฟรชหน้า (Ctrl+F5 หรือปิดแล้วเปิดแอปใหม่) แล้วสร้างรายงานประจำวันอีกครั้ง', 'STALE_CLIENT');
+  }
   const { snapshot } = await require('./hr').dailySummary(day);
   if (await findDup(day)) throw new HttpError(409, 'มีรายงานของวันนี้แล้ว — เปิดฉบับเดิม หรือให้ผู้ลงนามส่งกลับแก้ไขก่อนสร้างใหม่', 'DUPLICATE');
   const steps = await signerSteps();
