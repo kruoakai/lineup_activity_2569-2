@@ -209,6 +209,35 @@ describe('แบบรายงานและลำดับลงนาม', (
     r = await api(tok.S1).post(`/api/report-docs/${d.body.id}/return`).send({ password: h.PASSWORD, comment: 'ตัวเลขวันที่ 23 ไม่ตรง' });
     expect(r.body.status).toBe('returned');
   });
+
+  test('ผู้จัดทำแก้ไข/ดึงข้อมูลใหม่/ลบเอกสารได้ตามสถานะ', async () => {
+    const d = (await api(tok.HR1).post('/api/report-docs').send({ day: '2026-11-25' })).body;
+    expect(d.canEdit).toBe(true);
+    expect(d.canDelete).toBe(true);
+    // ผู้ลงนามแก้ไข/ลบไม่ได้
+    await api(tok.S1).patch(`/api/report-docs/${d.id}`).send({ title: 'x' }).expect(403);
+    await api(tok.S1).delete(`/api/report-docs/${d.id}`).send({ password: h.PASSWORD }).expect(403);
+    // แก้ชื่อ
+    let r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ title: 'ชื่อใหม่' });
+    expect(r.body.title).toBe('ชื่อใหม่');
+    expect((await api(tok.HR1).get('/api/report-docs')).body.items.find((x) => x.id === d.id).canEdit).toBe(true);
+    // ลงนามลำดับ 1 แล้ว → แก้ไขไม่ได้ จนกว่าจะถูกส่งกลับ
+    await api(tok.S1).post(`/api/report-docs/${d.id}/sign`).send({ password: h.PASSWORD, signature: PNG }).expect(200);
+    r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ title: 'อีกชื่อ' });
+    expect(r.status).toBe(403);
+    await api(tok.S2).post(`/api/report-docs/${d.id}/return`).send({ password: h.PASSWORD, comment: 'แก้ตัวเลข' }).expect(200);
+    // ดึงข้อมูลใหม่ → รอลงนามลำดับ 1 ใหม่ ลายเซ็นรอบก่อนเก็บเป็นประวัติ
+    r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ refresh: true });
+    expect(r.status).toBe(200);
+    expect(r.body.status).toBe('pending');
+    expect(r.body.current_step).toBe(1);
+    expect(r.body.signatures.map((s) => s.action)).toEqual(['sign', 'return', 'revise']);
+    expect(r.body.canEdit).toBe(true);
+    // ลบ: ต้องยืนยันรหัสผ่าน
+    await api(tok.HR1).delete(`/api/report-docs/${d.id}`).send({ password: 'bad' }).expect(403);
+    await api(tok.HR1).delete(`/api/report-docs/${d.id}`).send({ password: h.PASSWORD }).expect(200);
+    await api(tok.HR1).get(`/api/report-docs/${d.id}`).expect(404);
+  });
 });
 
 describe('สำรองข้อมูล', () => {

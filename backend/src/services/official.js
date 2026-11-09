@@ -178,7 +178,66 @@ async function get(user, id) {
     }]));
   }
   for (const sg of sigs) if (typeof sg.decision === 'string') sg.decision = JSON.parse(sg.decision);
-  return { ...doc, signatures: sigs, canSign: !!current && current.user_id === user.id, accounts };
+  const rights = manageRights(user, doc, activeSigs(sigs));
+  return { ...doc, signatures: sigs, canSign: !!current && current.user_id === user.id, accounts, ...rights };
+}
+
+// ลายเซ็นรอบปัจจุบัน = หลังการแก้ไขครั้งล่าสุด (รอบก่อนแก้ไขเก็บไว้เป็นประวัติ ไม่แสดงในเอกสาร)
+function activeSigs(sigs) {
+  let i = -1;
+  sigs.forEach((s, k) => { if (s.action === 'revise') i = k; });
+  return sigs.slice(i + 1);
+}
+
+// ผู้จัดทำ (หรือผู้ดูแลระบบ) แก้ไขได้เมื่อยังไม่มีใครลงนาม หรือถูกส่งกลับแก้ไข / ลบได้เมื่อยังไม่อนุมัติ (ผู้ดูแลลบได้ทุกสถานะ)
+function manageRights(user, doc, sigs) {
+  const owner = ['hr', 'admin'].includes(user.role) && (doc.created_by === user.id || user.role === 'admin');
+  const signed = sigs.some((s) => s.action === 'sign');
+  return {
+    canEdit: owner && (doc.status === 'returned' || (doc.status === 'pending' && !signed)),
+    canDelete: owner && (doc.status !== 'approved' || user.role === 'admin'),
+  };
+}
+
+async function update(user, id, { title, refresh }) {
+  const doc = await get(user, id);
+  if (!doc.canEdit) throw new HttpError(403, 'แก้ไขได้เฉพาะผู้จัดทำ ก่อนมีผู้ลงนาม หรือเมื่อถูกส่งกลับแก้ไข');
+  const t = title === undefined ? doc.title : String(title || '').trim().slice(0, 255);
+  if (!t) throw new HttpError(400, 'กรุณาระบุชื่อเอกสาร');
+  if (!refresh) {
+    await db.query('UPDATE report_docs SET title = ? WHERE id = ?', [t, doc.id]);
+    return get(user, doc.id);
+  }
+  if (doc.kind !== 'hr_daily') throw new HttpError(400, 'เอกสารแบบเดิมดึงข้อมูลใหม่ไม่ได้ — ลบแล้วสร้างใหม่');
+  const dup = (await db.query(
+    "SELECT id FROM report_docs WHERE kind = 'hr_daily' AND period_from = ? AND status <> 'returned' AND id <> ? LIMIT 1", [doc.period_from, doc.id]))[0];
+  if (dup) throw new HttpError(409, 'มีรายงานของวันนี้อีกฉบับอยู่แล้ว', 'DUPLICATE');
+  const { snapshot } = await require('./hr').dailySummary(doc.period_from);
+  const steps = await signerSteps();
+  steps[steps.length - 1].decision = true;
+  const json = JSON.stringify(snapshot);
+  const hash = crypto.createHash('sha256').update(json).digest('hex');
+  await db.query(
+    "UPDATE report_docs SET title = ?, snapshot = ?, snapshot_hash = ?, steps = ?, is_demo = ?, status = 'pending', current_step = 1 WHERE id = ?",
+    [t, json, hash, JSON.stringify(steps), snapshot.demo ? 1 : 0, doc.id],
+  );
+  await db.query(
+    "INSERT INTO report_signatures (doc_id, step, action, signer_id, comment, signed_at) VALUES (?, 0, 'revise', ?, ?, ?)",
+    [doc.id, user.id, 'ดึงข้อมูลล่าสุดและส่งลงนามใหม่', clock.now()],
+  );
+  notify(steps[0].user_id, { id: doc.id, title: t }, 'มีเอกสารรอท่านลงนาม (ฉบับแก้ไข)');
+  return get(user, doc.id);
+}
+
+async function remove(user, id, { password }) {
+  const doc = await get(user, id);
+  if (!doc.canDelete) throw new HttpError(403, 'ลบได้เฉพาะผู้จัดทำ ก่อนอนุมัติ (เอกสารที่อนุมัติแล้วลบได้เฉพาะผู้ดูแลระบบ)');
+  await confirmPassword(user.id, password);
+  const paths = (await db.query('SELECT signature_path FROM report_signatures WHERE doc_id = ? AND signature_path IS NOT NULL', [doc.id]))
+    .map((r) => r.signature_path);
+  await db.query('DELETE FROM report_docs WHERE id = ?', [doc.id]);
+  for (const p of paths) await files.removeUpload(p).catch(() => {});
+  return { ok: true };
 }
 
 // เมื่อผู้ดูแลกำหนดผู้ลงนาม: ใส่ตำแหน่งในโปรไฟล์ให้ (ถ้ายังว่าง) และให้ลำดับ 2–3 (รองฯ/ผอ.) มีบทบาทผู้บริหาร
@@ -204,7 +263,10 @@ async function list(user) {
     const doc = { ...r, steps, is_demo: !!r.is_demo };
     if (!(await canView(user, doc))) continue;
     const current = r.status === 'pending' ? steps[r.current_step - 1] : null;
-    out.push({ ...doc, waitingFor: current?.user_name || null, myTurn: !!current && current.user_id === user.id });
+    // สิทธิ์จัดการแบบย่อสำหรับหน้ารายการ (ลายเซ็นรอบปัจจุบันตรวจจาก current_step / สถานะ)
+    const rights = manageRights(user, doc, r.status === 'pending' && r.current_step > 1 ? [{ action: 'sign' }] : []);
+    if (r.status === 'approved') rights.canEdit = false;
+    out.push({ ...doc, waitingFor: current?.user_name || null, myTurn: !!current && current.user_id === user.id, ...rights });
   }
   return out;
 }
@@ -278,4 +340,4 @@ async function signatureFile(user, id, sigId) {
   return abs;
 }
 
-module.exports = { officialReport, preview, create, get, list, pendingCount, sign, returnDoc, signatureFile, canCreate, isSigner, syncSigners };
+module.exports = { officialReport, preview, create, update, remove, get, list, pendingCount, sign, returnDoc, signatureFile, canCreate, isSigner, syncSigners };

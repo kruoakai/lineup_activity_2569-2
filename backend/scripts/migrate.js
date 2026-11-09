@@ -217,6 +217,11 @@ const MIGRATIONS = [
       'ALTER TABLE users ADD COLUMN staff_type_demo TINYINT(1) NOT NULL DEFAULT 0 AFTER staff_type',
     ],
   },
+  {
+    id: '2026-11-09-15-report-revise',
+    // แก้ไขเอกสาร (ดึงข้อมูลใหม่แล้วส่งลงนามใหม่) บันทึกเป็นประวัติ — ลายเซ็นก่อนหน้ารอบแก้ไขไม่นับ
+    sql: ["ALTER TABLE report_signatures MODIFY action ENUM('sign','return','revise') NOT NULL"],
+  },
 ];
 
 async function migrate() {

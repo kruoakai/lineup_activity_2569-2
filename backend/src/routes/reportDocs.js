@@ -25,6 +25,14 @@ router.get('/:id', async (req, res) => {
   res.json(await official.get(req.user, req.params.id));
 });
 
+router.patch('/:id', async (req, res) => {
+  res.json(await official.update(req.user, req.params.id, req.body || {}));
+});
+
+router.delete('/:id', async (req, res) => {
+  res.json(await official.remove(req.user, req.params.id, req.body || {}));
+});
+
 router.post('/:id/sign', async (req, res) => {
   res.json(await official.sign(req.user, req.params.id, req.body || {}, req.ip));
 });

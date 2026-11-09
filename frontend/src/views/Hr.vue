@@ -119,9 +119,15 @@
           <label class="field grow"><span>ตั้งแต่</span><input v-model="from" type="date" /></label>
           <label class="field grow"><span>ถึง</span><input v-model="to" type="date" :min="from" /></label>
         </div>
-        <label class="field"><span>{{ needNote ? 'รายละเอียด (จำเป็น) เช่น สถานที่ / เลขที่คำสั่ง' : 'หมายเหตุ (ไม่บังคับ)' }}</span>
-          <input v-model.trim="note" maxlength="500" /></label>
-        <button class="btn primary block" :disabled="busy || !setTo || (needNote && !note)" @click="saveStatus">บันทึก{{ setLabel ? ` "${setLabel}"` : '' }}</button>
+        <label class="field" :class="{ need: needNote && !note, done: needNote && note }">
+          <span v-if="needNote">รายละเอียด<b class="req">* จำเป็นต้องกรอก</b></span>
+          <span v-else>หมายเหตุ (ไม่บังคับ)</span>
+          <input ref="noteEl" v-model.trim="note" maxlength="500" :required="needNote" :aria-invalid="needNote && !note"
+            :placeholder="needNote ? (setTo === 'official' ? 'เช่น ประชุมที่ สอศ. ตามคำสั่งที่ 123/2569' : 'เช่น ออกหน่วย Fix It Center ตามนโยบายวิทยาลัย') : ''" />
+          <small v-if="needNote && !note" class="need-msg">⚠ “{{ setLabel }}” ต้องระบุสถานที่ / เรื่อง หรือเลขที่คำสั่ง ก่อนจึงบันทึกได้ — ข้อความนี้จะแสดงในรายงานเสนอผู้บริหาร</small>
+        </label>
+        <button class="btn primary block" :disabled="busy || !setTo || (needNote && !note)" @click="saveStatus">
+          {{ needNote && !note ? 'กรอกรายละเอียดก่อนบันทึก' : `บันทึก${setLabel ? ` "${setLabel}"` : ''}` }}</button>
       </div>
     </div>
   </div>
@@ -283,6 +289,9 @@ function createDoc() {
 }
 
 watch(tab, () => { q.value = ''; });
+// เลือกไปราชการ / งานนโยบาย → พาไปช่องรายละเอียดทันที
+const noteEl = ref(null);
+watch(setTo, (v) => { if (['official', 'policy'].includes(v) && !note.value) setTimeout(() => noteEl.value?.focus(), 50); });
 
 onMounted(async () => {
   today.value = await serverToday();
@@ -315,6 +324,11 @@ onMounted(async () => {
 .plist input[type=checkbox] { flex: none; }
 .pn { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
 .pn .note { color: var(--info); }
+.field.need input { border: 2px solid var(--warn); background: var(--warn-bg, #fff8e1); }
+.field.need input:focus { outline: 3px solid rgba(237, 108, 2, .25); }
+.field.done input { border-color: var(--ok); }
+.req { color: var(--bad); margin-left: 6px; font-size: .85rem; }
+.need-msg { color: var(--warn); font-weight: 600; line-height: 1.4; }
 .mk { flex: none; min-height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font: inherit; font-size: .8rem; cursor: pointer; }
 .mk.on { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); font-weight: 700; }
 .plist select { width: auto; max-width: 52%; min-height: 36px; font-size: .85rem; }

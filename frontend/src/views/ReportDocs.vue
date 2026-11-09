@@ -17,18 +17,29 @@
     <div class="tabs">
       <button v-for="t in filters" :key="t.k" :class="{ on: filter === t.k }" @click="filter = t.k">{{ t.label }}</button>
     </div>
-    <ul class="list card">
-      <li v-for="d in shown" :key="d.id" @click="$router.push(`/report-docs/${d.id}`)">
-        <div class="main">
-          <strong>{{ d.title }}</strong>
-          <span class="small muted">{{ d.kind === 'hr_daily' ? thaiDate(d.period_from) : thaiRange(d.period_from, d.period_to) }} · สร้างโดย {{ d.created_by_name }}
-            <template v-if="d.waitingFor"> · รอ {{ d.waitingFor }}</template></span>
+    <p v-if="shown.length" class="small muted hint">กดที่เอกสารเพื่อเปิดดู ลงนาม หรือพิมพ์</p>
+    <ul class="docs">
+      <li v-for="d in shown" :key="d.id" class="doc" :class="{ turn: d.myTurn }">
+        <router-link :to="`/report-docs/${d.id}`" class="open">
+          <span class="ico" aria-hidden="true">📄</span>
+          <span class="main">
+            <strong>{{ d.title }}</strong>
+            <span class="small muted">{{ d.kind === 'hr_daily' ? thaiDate(d.period_from) : thaiRange(d.period_from, d.period_to) }} · สร้างโดย {{ d.created_by_name }}
+              <template v-if="d.waitingFor"> · รอ {{ d.waitingFor }}</template></span>
+            <span class="badges">
+              <span v-if="d.is_demo" class="badge muted">จำลอง</span>
+              <span v-if="d.myTurn" class="badge warn">รอท่านลงนาม</span>
+              <span class="badge" :class="STATUS_CLS[d.status]">{{ STATUS_TXT[d.status] }}{{ d.status === 'pending' ? ` ${d.current_step}/3` : '' }}</span>
+            </span>
+          </span>
+          <span class="go">{{ d.myTurn ? 'ลงนาม' : 'เปิดดู' }} ›</span>
+        </router-link>
+        <div v-if="d.canEdit || d.canDelete" class="acts">
+          <router-link v-if="d.canEdit" :to="`/report-docs/${d.id}#manage`" class="btn sm">✏️ แก้ไข</router-link>
+          <button v-if="d.canDelete" type="button" class="btn sm danger" :disabled="busy" @click="removeDoc(d)">🗑 ลบ</button>
         </div>
-        <span v-if="d.is_demo" class="badge muted">จำลอง</span>
-        <span v-if="d.myTurn" class="badge warn">รอท่านลงนาม</span>
-        <span class="badge" :class="STATUS_CLS[d.status]">{{ STATUS_TXT[d.status] }}{{ d.status === 'pending' ? ` ${d.current_step}/3` : '' }}</span>
       </li>
-      <li v-if="!shown.length" class="muted">ยังไม่มีเอกสาร</li>
+      <li v-if="!shown.length" class="card muted">ยังไม่มีเอกสาร</li>
     </ul>
   </div>
 </template>
@@ -37,6 +48,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api';
+import { askPassword } from '../confirm';
 import { thaiDate, thaiRange, serverToday } from '../util';
 
 const router = useRouter();
@@ -70,6 +82,17 @@ async function create() {
   } catch (e) { error.value = e.message; } finally { busy.value = false; }
 }
 
+async function removeDoc(d) {
+  const password = await askPassword('ยืนยันการลบเอกสาร', { detail: `${d.title} — ลบแล้วกู้คืนไม่ได้ (ยกเว้นกู้จากข้อมูลสำรอง)`, danger: true });
+  if (!password) return;
+  busy.value = true;
+  error.value = '';
+  try {
+    await api(`/api/report-docs/${d.id}`, { method: 'DELETE', body: { password } });
+    await load();
+  } catch (e) { error.value = e.message; } finally { busy.value = false; }
+}
+
 onMounted(async () => {
   day.value = await serverToday();
   await load();
@@ -82,5 +105,18 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.list li { cursor: pointer; }
+.hint { margin: 4px 2px 8px; }
+.docs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.doc { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.doc:hover, .doc:focus-within { border-color: var(--brand-2); box-shadow: 0 4px 14px rgba(30, 80, 160, .15); }
+.doc:active { transform: scale(.995); }
+.doc.turn { border-left: 5px solid var(--warn); }
+.open { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: inherit; text-decoration: none; cursor: pointer; }
+.open .ico { flex: none; width: 40px; height: 40px; border-radius: 10px; background: var(--info-bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.open .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.go { flex: none; font-weight: 700; color: var(--brand-2); white-space: nowrap; padding: 6px 12px; border-radius: 999px; background: var(--info-bg); }
+.doc:hover .go { background: var(--brand-2); color: #fff; }
+.acts { display: flex; gap: 8px; justify-content: flex-end; padding: 0 14px 10px; }
+@media (max-width: 520px) { .go { padding: 4px 8px; font-size: .85rem; } .open .ico { display: none; } }
 </style>

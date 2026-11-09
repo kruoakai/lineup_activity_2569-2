@@ -32,7 +32,7 @@
 
     <!-- แบบสรุปการปฏิบัติงานประจำวัน (งานบุคลากร) -->
     <article v-if="doc.kind === 'hr_daily'" class="paper doc" :class="{ wet }">
-      <HrDailyPaper :snap="snap" :steps="doc.steps" :signatures="doc.signatures" :sig-urls="sigUrls" :wet="wet" />
+      <HrDailyPaper :snap="snap" :steps="doc.steps" :signatures="active" :sig-urls="sigUrls" :wet="wet" />
       <p class="meta">เลขอ้างอิงเอกสาร {{ doc.id }}-{{ doc.snapshot_hash.slice(0, 10) }} · สร้างโดย {{ doc.created_by_name }} · ออกจากระบบเช็กชื่อเข้าแถว วิทยาลัยเทคนิคชัยภูมิ
         <br />{{ wet ? 'ฉบับสำหรับลงนามด้วยมือ' : `สถานะ: ${statusLine}` }} · พิมพ์เมื่อ {{ dt(new Date().toISOString()) }}</p>
     </article>
@@ -78,6 +78,23 @@
         <br />{{ wet ? 'ฉบับสำหรับลงนามด้วยมือ' : `สถานะ: ${statusLine}` }} · พิมพ์เมื่อ {{ dt(new Date().toISOString()) }}</p>
     </article>
 
+    <!-- จัดการเอกสาร (ผู้จัดทำ / ผู้ดูแลระบบ) -->
+    <section v-if="doc.canEdit || doc.canDelete" id="manage" class="card stack no-print manage">
+      <h3>จัดการเอกสาร</h3>
+      <template v-if="doc.canEdit">
+        <label class="field"><span>ชื่อเอกสาร</span><input v-model.trim="editTitle" maxlength="255" /></label>
+        <div class="row" style="flex-wrap:wrap">
+          <button class="btn" :disabled="busy || !editTitle || editTitle === doc.title" @click="saveTitle">💾 บันทึกชื่อเอกสาร</button>
+          <button v-if="doc.kind === 'hr_daily'" class="btn primary grow" :disabled="busy" @click="refreshDoc">
+            🔄 ดึงข้อมูลล่าสุด{{ doc.status === 'returned' ? 'แล้วส่งลงนามใหม่' : '' }}</button>
+        </div>
+        <p class="small muted" style="margin:0">แก้สถานะลา / ราชการ / มาสาย ที่หน้า
+          <router-link to="/hr">งานบุคลากรประจำวัน</router-link> ก่อน แล้วกด “ดึงข้อมูลล่าสุด” ตัวเลขในเอกสารจะอัปเดตและเริ่มลงนามใหม่ตั้งแต่ลำดับที่ 1</p>
+      </template>
+      <p v-else class="small muted" style="margin:0">มีผู้ลงนามแล้ว — แก้ไขไม่ได้ ถ้าข้อมูลผิด ให้ผู้ลงนามกด “ส่งกลับแก้ไข” หรือลบแล้วสร้างใหม่</p>
+      <button v-if="doc.canDelete" class="btn danger" :disabled="busy" @click="removeDoc">🗑 ลบเอกสารนี้</button>
+    </section>
+
     <!-- ลงนาม -->
     <section v-if="doc.canSign" class="card stack no-print">
       <h3>ลงนามลำดับที่ {{ doc.current_step }}: {{ doc.steps[doc.current_step - 1].title }}</h3>
@@ -101,7 +118,7 @@
       <ul class="list small">
         <li><div class="main">สร้างเอกสาร · {{ doc.created_by_name }} · {{ dt(doc.created_at) }}</div></li>
         <li v-for="s in doc.signatures" :key="s.id"><div class="main">
-          {{ s.action === 'sign' ? `ลงนามลำดับที่ ${s.step}` : `ส่งกลับแก้ไข (ลำดับที่ ${s.step})` }} · {{ s.signer_name }} · {{ dt(s.signed_at) }}
+          {{ s.action === 'sign' ? `ลงนามลำดับที่ ${s.step}` : s.action === 'revise' ? 'แก้ไขเอกสาร (ดึงข้อมูลล่าสุด) ส่งลงนามใหม่' : `ส่งกลับแก้ไข (ลำดับที่ ${s.step})` }} · {{ s.signer_name }} · {{ dt(s.signed_at) }}
           <template v-if="s.decision"> · {{ [s.decision.ack && 'ทราบ', s.decision.assign && `มอบ ${s.decision.assignTo}`].filter(Boolean).join(' / ') }}</template>
           <template v-if="s.comment"> · “{{ s.comment }}”</template></div></li>
       </ul>
@@ -112,13 +129,15 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api, auth, imageUrl } from '../api';
 import { askPassword } from '../confirm';
 import SignaturePad from '../components/SignaturePad.vue';
 import HrDailyPaper from '../components/HrDailyPaper.vue';
 
 const route = useRoute();
+const router = useRouter();
+const editTitle = ref('');
 const STATUS_TXT = { pending: 'รอลงนาม', approved: 'อนุมัติแล้ว', returned: 'ส่งกลับแก้ไข' };
 const STATUS_CLS = { pending: 'info', approved: 'ok', returned: 'bad' };
 const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -150,7 +169,14 @@ const periodText = computed(() => {
   return `${d1} ${MONTHS_FULL[m1 - 1]} ${y1 + 543} – ${d2} ${MONTHS_FULL[m2 - 1]} ${y2 + 543}`;
 });
 const docSub = computed(() => (doc.value.title.startsWith(snap.value.title) ? '' : doc.value.title));
-const lastSign = (step) => [...doc.value.signatures].reverse().find((s) => s.step === step && s.action === 'sign');
+// ลายเซ็นรอบปัจจุบัน (หลังการแก้ไขครั้งล่าสุด)
+const active = computed(() => {
+  const sigs = doc.value.signatures;
+  let i = -1;
+  sigs.forEach((s, k) => { if (s.action === 'revise') i = k; });
+  return sigs.slice(i + 1);
+});
+const lastSign = (step) => [...active.value].reverse().find((s) => s.step === step && s.action === 'sign');
 const returned = computed(() => (doc.value.status === 'returned' ? [...doc.value.signatures].reverse().find((s) => s.action === 'return') : null));
 const signedDate = (step) => { const s = lastSign(step); return s ? thaiShort(bkkDay(s.signed_at)) : ''; };
 const titleName = (st) => st.user_name;
@@ -158,6 +184,8 @@ const titleName = (st) => st.user_name;
 async function load() {
   try {
     doc.value = await api(`/api/report-docs/${route.params.id}`);
+    editTitle.value = doc.value.title;
+    if (route.hash === '#manage') nextTick(() => document.getElementById('manage')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     const urls = {};
     for (const st of doc.value.steps) {
       const s = lastSign(st.step);
@@ -192,6 +220,35 @@ async function sendBack() {
     await api(`/api/report-docs/${doc.value.id}/return`, { method: 'POST', body: { password, comment: comment.value } });
     msg.value = 'ส่งกลับแก้ไขแล้ว';
     await load();
+  } catch (e) { error.value = e.message; } finally { busy.value = false; }
+}
+
+async function saveTitle() {
+  busy.value = true; error.value = ''; msg.value = '';
+  try {
+    await api(`/api/report-docs/${doc.value.id}`, { method: 'PATCH', body: { title: editTitle.value } });
+    msg.value = 'บันทึกชื่อเอกสารแล้ว';
+    await load();
+  } catch (e) { error.value = e.message; } finally { busy.value = false; }
+}
+
+async function refreshDoc() {
+  if (!window.confirm('ดึงข้อมูลล่าสุดแล้วส่งลงนามใหม่?\nตัวเลขในเอกสารจะคำนวณใหม่จากข้อมูลปัจจุบัน และเริ่มลงนามตั้งแต่ลำดับที่ 1')) return;
+  busy.value = true; error.value = ''; msg.value = '';
+  try {
+    await api(`/api/report-docs/${doc.value.id}`, { method: 'PATCH', body: { title: editTitle.value, refresh: true } });
+    msg.value = 'อัปเดตข้อมูลแล้ว ส่งให้ผู้ลงนามลำดับที่ 1';
+    await load();
+  } catch (e) { error.value = e.message; } finally { busy.value = false; }
+}
+
+async function removeDoc() {
+  const password = await askPassword('ยืนยันการลบเอกสาร', { detail: `${doc.value.title} — ลบแล้วกู้คืนไม่ได้ (ยกเว้นกู้จากข้อมูลสำรอง)`, danger: true });
+  if (!password) return;
+  busy.value = true; error.value = '';
+  try {
+    await api(`/api/report-docs/${doc.value.id}`, { method: 'DELETE', body: { password } });
+    router.push('/report-docs');
   } catch (e) { error.value = e.message; } finally { busy.value = false; }
 }
 
@@ -260,6 +317,7 @@ onMounted(() => {
 .acct .okc { color: var(--ok); }
 .decision { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; gap: 6px; }
 .decision legend { padding: 0 6px; color: var(--muted); font-size: .85rem; }
+.manage { border-left: 4px solid var(--brand-2); }
 .meta { margin-top: 18px; font-size: 11px; color: #666; text-align: center; }
 /* หนังสือราชการ: กระดาษขาวไม่มีกรอบ/เงา ระยะขอบแบบ A4 (บน 2.5 ซ้าย 3 ขวา 2 ล่าง 2 ซม.) */
 .paper.doc { border-radius: 0; box-shadow: none; border: 0; padding: 2.5cm 2cm 2cm 3cm; color: #000; }
