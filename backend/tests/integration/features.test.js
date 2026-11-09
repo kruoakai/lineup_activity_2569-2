@@ -30,9 +30,10 @@ beforeAll(async () => {
     s2: await h.createUser({ code: 'S2', name: 'รองผู้อำนวยการ', role: 'executive', mustAssemble: false }),
     s3: await h.createUser({ code: 'S3', name: 'ผู้อำนวยการ', role: 'executive', mustAssemble: false }),
     hr: await h.createUser({ code: 'HR1', name: 'เจ้าหน้าที่บุคลากร', role: 'hr', mustAssemble: false }),
+    hr2: await h.createUser({ code: 'HR2', name: 'เจ้าหน้าที่บุคลากรคนที่สอง', role: 'hr', mustAssemble: false }),
   };
   tok = {};
-  for (const k of ['A1', 'B1', 'C1', 'ACT', 'ADM', 'S1', 'S2', 'S3', 'HR1']) tok[k] = await h.login(k);
+  for (const k of ['A1', 'B1', 'C1', 'ACT', 'ADM', 'S1', 'S2', 'S3', 'HR1', 'HR2']) tok[k] = await h.login(k);
 });
 
 afterAll(async () => {
@@ -217,9 +218,11 @@ describe('แบบรายงานและลำดับลงนาม', (
     // ผู้ลงนามแก้ไข/ลบไม่ได้
     await api(tok.S1).patch(`/api/report-docs/${d.id}`).send({ title: 'x' }).expect(403);
     await api(tok.S1).delete(`/api/report-docs/${d.id}`).send({ password: h.PASSWORD }).expect(403);
-    // แก้ชื่อ
-    let r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ title: 'ชื่อใหม่' });
+    // แก้ชื่อ — เจ้าหน้าที่บุคลากรอีกคนแก้แทนได้ (ผู้สร้างไม่อยู่)
+    let r = await api(tok.HR2).patch(`/api/report-docs/${d.id}`).send({ title: 'ชื่อใหม่' });
+    expect(r.status).toBe(200);
     expect(r.body.title).toBe('ชื่อใหม่');
+    expect((await api(tok.HR2).get('/api/report-docs')).body.items.find((x) => x.id === d.id)).toMatchObject({ canEdit: true, canDelete: true });
     expect((await api(tok.HR1).get('/api/report-docs')).body.items.find((x) => x.id === d.id).canEdit).toBe(true);
     // ลงนามลำดับ 1 แล้ว → แก้ไขไม่ได้ จนกว่าจะถูกส่งกลับ
     await api(tok.S1).post(`/api/report-docs/${d.id}/sign`).send({ password: h.PASSWORD, signature: PNG }).expect(200);
@@ -229,6 +232,7 @@ describe('แบบรายงานและลำดับลงนาม', (
     // ผู้จัดทำเห็นเอกสารที่ถูกส่งกลับ (นับบนเมนู + เหตุผลในรายการ)
     expect((await api(tok.HR1).get('/api/report-docs/pending-count')).body.returned).toBeGreaterThanOrEqual(1);
     expect((await api(tok.S1).get('/api/report-docs/pending-count')).body.returned).toBe(0);
+    expect((await api(tok.HR2).get('/api/report-docs/pending-count')).body.returned).toBeGreaterThanOrEqual(1);
     const row = (await api(tok.HR1).get('/api/report-docs')).body.items.find((x) => x.id === d.id);
     expect(row.returnedBy).toEqual({ name: expect.any(String), comment: 'แก้ตัวเลข' });
     expect(row.canEdit).toBe(true);

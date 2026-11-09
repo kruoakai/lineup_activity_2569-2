@@ -189,9 +189,11 @@ function activeSigs(sigs) {
   return sigs.slice(i + 1);
 }
 
-// ผู้จัดทำ (หรือผู้ดูแลระบบ) แก้ไขได้เมื่อยังไม่มีใครลงนาม หรือถูกส่งกลับแก้ไข / ลบได้เมื่อยังไม่อนุมัติ (ผู้ดูแลลบได้ทุกสถานะ)
+// ผู้จัดทำ แก้ไขได้เมื่อยังไม่มีใครลงนาม หรือถูกส่งกลับแก้ไข / ลบได้เมื่อยังไม่อนุมัติ (ผู้ดูแลลบได้ทุกสถานะ)
+// รายงานงานบุคลากร: เจ้าหน้าที่บุคลากรทุกคนจัดการแทนกันได้ (เผื่อผู้สร้างไม่อยู่) · ผู้ดูแลระบบจัดการได้ทุกฉบับ
 function manageRights(user, doc, sigs) {
-  const owner = ['hr', 'admin'].includes(user.role) && (doc.created_by === user.id || user.role === 'admin');
+  const owner = user.role === 'admin'
+    || (user.role === 'hr' && (doc.created_by === user.id || doc.kind === 'hr_daily'));
   const signed = sigs.some((s) => s.action === 'sign');
   return {
     canEdit: owner && (doc.status === 'returned' || (doc.status === 'pending' && !signed)),
@@ -201,7 +203,7 @@ function manageRights(user, doc, sigs) {
 
 async function update(user, id, { title, refresh }) {
   const doc = await get(user, id);
-  if (!doc.canEdit) throw new HttpError(403, 'แก้ไขได้เฉพาะผู้จัดทำ ก่อนมีผู้ลงนาม หรือเมื่อถูกส่งกลับแก้ไข');
+  if (!doc.canEdit) throw new HttpError(403, 'แก้ไขได้เฉพาะเจ้าหน้าที่บุคลากร / ผู้ดูแลระบบ ก่อนมีผู้ลงนาม หรือเมื่อถูกส่งกลับแก้ไข');
   const t = title === undefined ? doc.title : String(title || '').trim().slice(0, 255);
   if (!t) throw new HttpError(400, 'กรุณาระบุชื่อเอกสาร');
   if (!refresh) {
@@ -231,7 +233,7 @@ async function update(user, id, { title, refresh }) {
 
 async function remove(user, id, { password }) {
   const doc = await get(user, id);
-  if (!doc.canDelete) throw new HttpError(403, 'ลบได้เฉพาะผู้จัดทำ ก่อนอนุมัติ (เอกสารที่อนุมัติแล้วลบได้เฉพาะผู้ดูแลระบบ)');
+  if (!doc.canDelete) throw new HttpError(403, 'ลบได้เฉพาะเจ้าหน้าที่บุคลากร / ผู้ดูแลระบบ ก่อนอนุมัติ (เอกสารที่อนุมัติแล้วลบได้เฉพาะผู้ดูแลระบบ)');
   await confirmPassword(user.id, password);
   const paths = (await db.query('SELECT signature_path FROM report_signatures WHERE doc_id = ? AND signature_path IS NOT NULL', [doc.id]))
     .map((r) => r.signature_path);
@@ -289,7 +291,7 @@ async function returnedCount(user) {
   if (!['hr', 'admin'].includes(user.role)) return 0;
   const [r] = user.role === 'admin'
     ? await db.query("SELECT COUNT(*) AS n FROM report_docs WHERE status = 'returned'")
-    : await db.query("SELECT COUNT(*) AS n FROM report_docs WHERE status = 'returned' AND created_by = ?", [user.id]);
+    : await db.query("SELECT COUNT(*) AS n FROM report_docs WHERE status = 'returned' AND (created_by = ? OR kind = 'hr_daily')", [user.id]);
   return Number(r.n);
 }
 

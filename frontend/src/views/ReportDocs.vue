@@ -43,6 +43,7 @@
           <span class="go">{{ d.myTurn ? 'ลงนาม' : d.status === 'returned' && d.canEdit ? 'แก้ไข' : 'เปิดดู' }} ›</span>
         </router-link>
         <div v-if="d.canEdit || d.canDelete" class="acts">
+          <span v-if="!d.canEdit" class="lock small">🔒 {{ d.status === 'approved' ? 'อนุมัติแล้ว แก้ไขไม่ได้' : 'มีผู้ลงนามแล้ว แก้ไขไม่ได้ — ให้ผู้ลงนามกด “ส่งกลับแก้ไข”' }}</span>
           <router-link v-if="d.canEdit" :to="`/report-docs/${d.id}#manage`" class="btn sm">✏️ แก้ไข</router-link>
           <button v-if="d.canDelete" type="button" class="btn sm danger" :disabled="busy" @click="removeDoc(d)">🗑 ลบ</button>
         </div>
@@ -138,6 +139,7 @@ onMounted(async () => {
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .go { flex: none; font-weight: 700; color: var(--brand-2); white-space: nowrap; padding: 6px 12px; border-radius: 999px; background: var(--info-bg); }
 .doc:hover .go { background: var(--brand-2); color: #fff; }
-.acts { display: flex; gap: 8px; justify-content: flex-end; padding: 0 14px 10px; }
+.acts { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; padding: 0 14px 10px; }
+.lock { color: var(--muted); margin-right: auto; line-height: 1.4; }
 @media (max-width: 520px) { .go { padding: 4px 8px; font-size: .85rem; } .open .ico { display: none; } }
 </style>
