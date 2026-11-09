@@ -21,11 +21,12 @@ const CRLF = String.fromCharCode(13, 10);
 // แผนก/งานที่กำหนดบทบาทเริ่มต้น
 const ROLE_BY_DEPARTMENT = {
   'งานกิจกรรมนักเรียน นักศึกษา': 'activity',
+  'งานบริหารและพัฒนาทรัพยากรบุคคล': 'hr',
 };
 
-// ผู้ลงนามเริ่มต้นตามแบบบันทึกการเข้าร่วมกิจกรรมหน้าเสาธง (ผู้ดูแลเปลี่ยนได้) — ไม่ทับค่าที่ตั้งไว้แล้ว
+// ผู้ลงนามเริ่มต้นตามแบบสรุปการปฏิบัติงานประจำวัน: ผู้รายงาน → ผู้ตรวจสอบ → ผู้อำนวยการ (ผู้ดูแลเปลี่ยนได้) — ไม่ทับค่าที่ตั้งไว้แล้ว
 async function defaultSigners() {
-  const SIGNERS = { sign_step1_user: 'ประพันธ์ศักดิ์ %', sign_step2_user: 'อังคณา เบ็ญจศิล', sign_step3_user: 'กรรณิกา ยอดสง่า' };
+  const SIGNERS = { sign_step1_user: 'จารุณี คบสหาย', sign_step2_user: 'ปรีชา อารีวงษ์', sign_step3_user: 'กรรณิกา ยอดสง่า' };
   for (const [k, name] of Object.entries(SIGNERS)) {
     const [set] = await db.query('SELECT v FROM settings WHERE k = ?', [k]);
     if (set && set.v) continue;

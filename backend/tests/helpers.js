@@ -31,7 +31,7 @@ function bkk(day, time) {
 async function resetDb() {
   await migrate();
   await db.query('SET FOREIGN_KEY_CHECKS = 0');
-  for (const t of ['report_signatures', 'report_docs', 'attendance_photos', 'password_resets', 'attendance_events', 'attendance', 'refresh_tokens', 'admin_logs', 'users', 'departments', 'settings', 'assembly_days', 'semesters', 'api_keys']) {
+  for (const t of ['report_signatures', 'report_docs', 'attendance_photos', 'password_resets', 'attendance_events', 'attendance', 'refresh_tokens', 'admin_logs', 'users', 'departments', 'settings', 'assembly_days', 'semesters', 'api_keys', 'hr_marks']) {
     await db.query(`TRUNCATE TABLE ${t}`);
   }
   await db.query('SET FOREIGN_KEY_CHECKS = 1');

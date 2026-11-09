@@ -11,7 +11,7 @@
     <!-- ผลวันนี้ -->
     <section v-if="record" class="card result" :class="STATUS[record.status].cls">
       <div class="big">{{ record.status === 'present' ? '✓' : record.status === 'pending' ? '…' : 'i' }}</div>
-      <h2>{{ STATUS[record.status].label }}</h2>
+      <h2>{{ statusLabel(record) }}</h2>
       <p class="small">
         {{ METHOD[record.method] }} เวลา {{ thaiTime(record.checked_at) }} น.
         <template v-if="record.checked_by !== auth.user.id"><br /><b>{{ ['proxy_activity','admin'].includes(record.method) ? 'บันทึกโดย' : 'เช็กแทนโดย' }} {{ record.checked_by_name }}</b></template>
@@ -107,7 +107,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, auth } from '../api';
-import { STATUS, METHOD, thaiDate, thaiTime, deviceId, getBestPosition, distanceMeters } from '../util';
+import { STATUS, METHOD, statusLabel, thaiDate, thaiTime, deviceId, getBestPosition, distanceMeters } from '../util';
 import PhotoPicker from '../components/PhotoPicker.vue';
 import QrScanner from '../components/QrScanner.vue';
 

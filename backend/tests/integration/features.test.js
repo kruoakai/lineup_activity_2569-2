@@ -29,9 +29,10 @@ beforeAll(async () => {
     s1: await h.createUser({ code: 'S1', name: 'หัวหน้างานแนะแนว', mustAssemble: false }),
     s2: await h.createUser({ code: 'S2', name: 'รองผู้อำนวยการ', role: 'executive', mustAssemble: false }),
     s3: await h.createUser({ code: 'S3', name: 'ผู้อำนวยการ', role: 'executive', mustAssemble: false }),
+    hr: await h.createUser({ code: 'HR1', name: 'เจ้าหน้าที่บุคลากร', role: 'hr', mustAssemble: false }),
   };
   tok = {};
-  for (const k of ['A1', 'B1', 'C1', 'ACT', 'ADM', 'S1', 'S2', 'S3']) tok[k] = await h.login(k);
+  for (const k of ['A1', 'B1', 'C1', 'ACT', 'ADM', 'S1', 'S2', 'S3', 'HR1']) tok[k] = await h.login(k);
 });
 
 afterAll(async () => {
@@ -172,11 +173,11 @@ describe('แบบรายงานและลำดับลงนาม', (
   });
 
   test('สร้างเอกสาร → ลงนาม 3 ลำดับ → อนุมัติ; ลงนามข้ามลำดับไม่ได้', async () => {
-    let r = await api(tok.ACT).post('/api/report-docs').send({ from: '2026-11-23', to: '2026-11-24' });
+    let r = await api(tok.HR1).post('/api/report-docs').send({ day: '2026-11-23' });
     expect(r.status).toBe(400); // ยังไม่กำหนดผู้ลงนาม
     await api(tok.ADM).put('/api/admin/settings').send({ sign_step1_user: ids.s1, sign_step2_user: ids.s2, sign_step3_user: ids.s3 }).expect(200);
     h.settings.invalidate();
-    r = await api(tok.ACT).post('/api/report-docs').send({ from: '2026-11-23', to: '2026-11-24' });
+    r = await api(tok.HR1).post('/api/report-docs').send({ day: '2026-11-23' });
     expect(r.status).toBe(201);
     const id = r.body.id;
     expect(outbox.at(-1).text).toContain(`/report-docs/${id}`);
@@ -193,7 +194,7 @@ describe('แบบรายงานและลำดับลงนาม', (
     await api(tok.S2).post('/api/profile/signature').send({ image: PNG, password: h.PASSWORD }).expect(200);
     r = await api(tok.S2).post(`/api/report-docs/${id}/sign`).send({ password: h.PASSWORD });
     expect(r.body.current_step).toBe(3);
-    r = await api(tok.S3).post(`/api/report-docs/${id}/sign`).send({ password: h.PASSWORD, signature: PNG, comment: 'อนุมัติ' });
+    r = await api(tok.S3).post(`/api/report-docs/${id}/sign`).send({ password: h.PASSWORD, signature: PNG, comment: 'อนุมัติ', decision: { ack: true } });
     expect(r.body.status).toBe('approved');
     expect(r.body.signatures).toHaveLength(3);
     await api(tok.S1).get(`/api/report-docs/${id}/signatures/${r.body.signatures[0].id}`).expect(200);
@@ -201,7 +202,8 @@ describe('แบบรายงานและลำดับลงนาม', (
   });
 
   test('ส่งกลับแก้ไขต้องมีเหตุผล', async () => {
-    const d = await api(tok.ACT).post('/api/report-docs').send({ from: '2026-11-23', to: '2026-11-23' });
+    const d = await api(tok.HR1).post('/api/report-docs').send({ day: '2026-11-24' });
+    expect(d.status).toBe(201);
     let r = await api(tok.S1).post(`/api/report-docs/${d.body.id}/return`).send({ password: h.PASSWORD });
     expect(r.status).toBe(400);
     r = await api(tok.S1).post(`/api/report-docs/${d.body.id}/return`).send({ password: h.PASSWORD, comment: 'ตัวเลขวันที่ 23 ไม่ตรง' });
@@ -459,13 +461,13 @@ describe('ผู้ลงนาม: ตำแหน่ง บทบาท แล
     expect(b.position_title).toBe('ครูชำนาญการ'); // มีตำแหน่งอยู่แล้ว ไม่เขียนทับ
     const [s1] = await h.db.query('SELECT role, position_title FROM users WHERE id = ?', [ids.s1]);
     expect(s1.role).toBe('staff');
-    expect(s1.position_title).toBe('หัวหน้างานครูที่ปรึกษาและการแนะแนว');
+    expect(s1.position_title).toBe('หัวหน้างานบริหารและพัฒนาทรัพยากรบุคคล');
     clock.setNow(bkk('2026-12-14', '10:00:00'));
-    const doc = await api(tok.ACT).post('/api/report-docs').send({ from: '2026-12-07', to: '2026-12-11' });
+    const doc = await api(tok.HR1).post('/api/report-docs').send({ day: '2026-12-08' });
     expect(doc.status).toBe(201);
     const g = await api(tok.ADM).get(`/api/report-docs/${doc.body.id}`).expect(200);
     expect(g.body.accounts[ids.s1]).toHaveProperty('ready');
-    expect(g.body.title).toMatch(/ระหว่างวันที่ 7–11 ธันวาคม 2569$/);
+    expect(g.body.title).toBe('สรุปการปฏิบัติงานของข้าราชการครู และบุคลากรทางการศึกษา ประจำวันอังคาร ที่ 8 ธันวาคม พ.ศ. 2569');
     const other = await api(tok.S1).get(`/api/report-docs/${doc.body.id}`).expect(200);
     expect(other.body.accounts).toBeUndefined();
     expect(other.body.canSign).toBe(true);
@@ -476,13 +478,16 @@ describe('ผู้ลงนาม: ตำแหน่ง บทบาท แล
 });
 
 describe('แบ่งหน้าที่: ผู้ลงนาม/ผู้บริหารสร้างเอกสารไม่ได้', () => {
-  test('ผู้บริหารและผู้ลงนามสร้างไม่ได้ งานกิจกรรมสร้างได้', async () => {
+  test('ผู้บริหาร ผู้ลงนาม และงานกิจกรรมสร้างไม่ได้ — เจ้าหน้าที่บุคลากรสร้างได้', async () => {
     clock.setNow(bkk('2026-12-21', '10:00:00'));
     let r = await api(tok.S3).get('/api/report-docs').expect(200);
     expect(r.body.canCreate).toBe(false);
-    await api(tok.S3).post('/api/report-docs').send({ from: '2026-12-14', to: '2026-12-18' }).expect(403);
-    await api(tok.S1).post('/api/report-docs').send({ from: '2026-12-14', to: '2026-12-18' }).expect(403);
+    await api(tok.S3).post('/api/report-docs').send({ day: '2026-12-14' }).expect(403);
+    await api(tok.S1).post('/api/report-docs').send({ day: '2026-12-14' }).expect(403);
+    await api(tok.ACT).post('/api/report-docs').send({ day: '2026-12-14' }).expect(403);
     r = await api(tok.ACT).get('/api/report-docs').expect(200);
+    expect(r.body.canCreate).toBe(false);
+    r = await api(tok.HR1).get('/api/report-docs').expect(200);
     expect(r.body.canCreate).toBe(true);
   });
 });
@@ -495,5 +500,94 @@ describe('ย้ายชื่อเอกสารเดิมเป็นว�
     await MIGRATIONS.find((m) => m.id === '2026-11-08-12-thai-doc-titles').after();
     const [after] = await h.db.query('SELECT title FROM report_docs WHERE id = ?', [d.id]);
     expect(after.title).toBe('แบบบันทึก ระหว่างวันที่ 26–30 ตุลาคม 2569');
+  });
+});
+
+describe('งานบุคลากร: สถานะลา/ราชการ ผู้มาสาย และแบบสรุปการปฏิบัติงานประจำวัน', () => {
+  const D = '2027-01-05'; // อังคาร
+  test('เฉพาะเจ้าหน้าที่บุคลากรและผู้ดูแลระบบ', async () => {
+    clock.setNow(bkk('2027-01-11', '10:00:00'));
+    await api(tok.A1).get(`/api/hr/day/${D}`).expect(403);
+    await api(tok.ACT).get(`/api/hr/day/${D}`).expect(403);
+    await api(tok.HR1).get(`/api/hr/day/${D}`).expect(200);
+    await api(tok.ADM).get('/api/hr/meta').expect(200);
+  });
+
+  test('กำหนดประเภทบุคลากร', async () => {
+    for (const [id, t] of [[ids.a, 'gov_teacher'], [ids.b, 'temp_teacher'], [ids.c, 'temp_janitor'], [ids.s3, 'executive'], [ids.hr, 'temp_officer']]) {
+      await api(tok.HR1).patch(`/api/hr/users/${id}/staff-type`).send({ staffType: t }).expect(200);
+    }
+    await api(tok.HR1).patch(`/api/hr/users/${ids.a}/staff-type`).send({ staffType: 'king' }).expect(400);
+  });
+
+  test('บันทึกสถานะ: ต้องมีรายละเอียด/ประเภทการลา ช่วงวันที่ข้ามวันหยุด ล่วงหน้าได้ไม่เกิน 60 วัน', async () => {
+    await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.b], from: D, status: 'official' }).expect(400);
+    await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.c], from: D, status: 'leave' }).expect(400);
+    let r = await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.b], from: D, status: 'official', note: 'อบรม สอศ.' }).expect(200);
+    expect(r.body.changed).toBe(1);
+    await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.c], from: D, status: 'leave', leaveType: 'sick' }).expect(200);
+    r = await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.a], from: '2027-01-08', to: '2027-01-12', status: 'policy', note: 'ประชุมนโยบาย' }).expect(200);
+    expect(r.body.days).toEqual(['2027-01-08', '2027-01-11', '2027-01-12']);
+    await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.a], from: '2027-04-01', status: 'leave', leaveType: 'personal' }).expect(400);
+    const [rec] = await h.db.query('SELECT status, leave_type, method FROM attendance WHERE user_id = ? AND day = ?', [ids.c, D]);
+    expect(rec).toEqual({ status: 'leave', leave_type: 'sick', method: 'hr' });
+  });
+
+  test('ล้างสถานะได้เฉพาะรายการที่งานบุคลากรบันทึก', async () => {
+    await h.db.query("INSERT INTO attendance (user_id, day, status, method, checked_by, checked_at) VALUES (?, '2027-01-07', 'present', 'self_tap', ?, NOW())", [ids.c, ids.c]);
+    let r = await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.c], from: '2027-01-07', status: 'clear' }).expect(200);
+    expect(r.body.changed).toBe(0);
+    await api(tok.HR1).post('/api/hr/status').send({ userIds: [ids.a], from: '2027-01-12', status: 'clear' }).expect(200);
+    r = await api(tok.HR1).get('/api/hr/day/2027-01-12').expect(200);
+    expect(r.body.people.find((p) => p.id === ids.a).status).toBeNull();
+  });
+
+  test('ผู้มาสาย/ไม่ลงเวลากลับ และตัวอย่างรายงาน', async () => {
+    await api(tok.HR1).put(`/api/hr/marks/${D}/late`).send({ userIds: [ids.a] }).expect(200);
+    await api(tok.HR1).put(`/api/hr/marks/${D}/no_signout`).send({ userIds: [ids.b] }).expect(200);
+    await api(tok.HR1).put(`/api/hr/marks/${D}/wrong`).send({ userIds: [ids.b] }).expect(400);
+    const p = await api(tok.HR1).get(`/api/report-docs/preview?day=${D}`).expect(200);
+    const sn = p.body.snapshot;
+    expect(sn.total).toBe(5);
+    expect(sn.counts.find((c) => c.no === '1.7')).toMatchObject({ count: 3 });
+    expect(sn.counts.find((c) => c.no === '1.2').count).toBe(1);
+    expect(sn.official).toEqual([{ name: 'ครู B', type: 'ครูอัตราจ้าง', note: 'อบรม สอศ.' }]);
+    expect(sn.leave.sick.map((x) => x.name)).toEqual(['ครู C']);
+    expect(sn.assembly.held).toBe(true);
+    const notJoined = sn.assembly.list.map((x) => x.name);
+    expect(notJoined).toContain('ครู A');
+    expect(notJoined).not.toEqual(expect.arrayContaining(['ครู B'])); // ไปราชการ ไม่นับว่าไม่เข้ากิจกรรม
+    expect(notJoined).not.toEqual(expect.arrayContaining(['ครู C'])); // ลาป่วย
+    expect(sn.late.map((x) => x.name)).toEqual(['ครู A']);
+    expect(sn.noSignout.map((x) => x.name)).toEqual(['ครู B']);
+    expect([sn.worked, sn.notWorked]).toEqual([4, 1]);
+    expect(p.body.warnings.join()).toMatch(/ยังไม่กำหนดประเภทบุคลากร/);
+    await api(tok.ACT).get(`/api/report-docs/preview?day=${D}`).expect(403);
+  });
+
+  test('วันนี้ยังไม่ปิดเช็กชื่อ สร้างไม่ได้', async () => {
+    clock.setNow(bkk('2027-01-13', '07:40:00'));
+    const r = await api(tok.HR1).get('/api/report-docs/preview?day=2027-01-13');
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('NOT_CLOSED');
+    clock.setNow(bkk('2027-01-13', '10:00:00'));
+  });
+
+  test('สร้าง → ซ้ำวันเดียวกันไม่ได้ → ผู้อำนวยการต้องเลือก ทราบ/มอบ', async () => {
+    const d = await api(tok.HR1).post('/api/report-docs').send({ day: D }).expect(201);
+    expect(d.body.kind).toBe('hr_daily');
+    expect(d.body.title).toMatch(/ประจำวันอังคาร ที่ 5 มกราคม พ.ศ. 2570$/);
+    expect(d.body.steps[2].decision).toBe(true);
+    expect((await api(tok.HR1).post('/api/report-docs').send({ day: D })).body.code).toBe('DUPLICATE');
+    await api(tok.S1).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD, signature: PNG }).expect(200);
+    await api(tok.S2).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD }).expect(200);
+    let r = await api(tok.S3).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD, signature: PNG });
+    expect(r.status).toBe(400);
+    r = await api(tok.S3).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD, signature: PNG, decision: { assign: true } });
+    expect(r.status).toBe(400);
+    r = await api(tok.S3).post(`/api/report-docs/${d.body.id}/sign`).send({ password: h.PASSWORD, signature: PNG, decision: { ack: true, assign: true, assignTo: 'หน.งานบริหารและพัฒนาทรัพยากรบุคคล' } });
+    expect(r.status).toBe(200);
+    expect(r.body.status).toBe('approved');
+    expect(r.body.signatures[2].decision).toEqual({ ack: true, assign: true, assignTo: 'หน.งานบริหารและพัฒนาทรัพยากรบุคคล' });
   });
 });

@@ -28,7 +28,10 @@ async function seed() {
   u.S1 = await h.createUser({ code: 'S1', name: 'ผู้ลงนามหนึ่ง', mustAssemble: false });
   u.S2 = await h.createUser({ code: 'S2', name: 'ผู้ลงนามสอง', role: 'executive', mustAssemble: false });
   u.S3 = await h.createUser({ code: 'S3', name: 'ผู้อำนวยการทดสอบ', role: 'executive', mustAssemble: false });
+  u.HR = await h.createUser({ code: 'HR', name: 'เจ้าหน้าที่บุคลากรทดสอบ', role: 'hr', mustAssemble: false });
   await settings.update({ sign_step1_user: String(u.S1), sign_step2_user: String(u.S2), sign_step3_user: String(u.S3) });
+  const types = { T1: 'gov_teacher', T2: 'gov_teacher', T3: 'temp_teacher', T4: 'temp_officer', FR: 'assistant_teacher', S3: 'executive', HR: 'temp_officer' };
+  for (const [code, t] of Object.entries(types)) await h.db.query('UPDATE users SET staff_type = ? WHERE id = ?', [t, u[code]]);
   return u;
 }
 

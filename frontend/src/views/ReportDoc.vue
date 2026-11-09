@@ -30,8 +30,15 @@
     <div v-if="doc.is_demo" class="alert warn small no-print" style="margin-top:10px">เอกสารนี้มีข้อมูลจำลอง ใช้สำหรับฝึกใช้งานเท่านั้น</div>
     <div v-if="returned" class="alert bad small no-print" style="margin-top:10px">ส่งกลับแก้ไขโดย {{ returned.signer_name }}: {{ returned.comment }}</div>
 
-    <!-- แบบบันทึก (พิมพ์ได้ขนาด A4) -->
-    <article class="paper" :class="{ wet }">
+    <!-- แบบสรุปการปฏิบัติงานประจำวัน (งานบุคลากร) -->
+    <article v-if="doc.kind === 'hr_daily'" class="paper" :class="{ wet }">
+      <HrDailyPaper :snap="snap" :steps="doc.steps" :signatures="doc.signatures" :sig-urls="sigUrls" :wet="wet" />
+      <p class="meta">เลขอ้างอิงเอกสาร {{ doc.id }}-{{ doc.snapshot_hash.slice(0, 10) }} · สร้างโดย {{ doc.created_by_name }} · ออกจากระบบเช็กชื่อเข้าแถว วิทยาลัยเทคนิคชัยภูมิ
+        <br />{{ wet ? 'ฉบับสำหรับลงนามด้วยมือ' : `สถานะ: ${statusLine}` }} · พิมพ์เมื่อ {{ dt(new Date().toISOString()) }}</p>
+    </article>
+
+    <!-- แบบบันทึกการเข้าร่วมกิจกรรมหน้าเสาธง (เอกสารแบบเดิม) -->
+    <article v-else class="paper" :class="{ wet }">
       <h2 class="ttl">{{ snap.title }} ประจำวันที่ {{ periodText }}</h2>
       <p v-if="docSub" class="sub">{{ docSub }}</p>
       <table class="form">
@@ -74,12 +81,18 @@
     <!-- ลงนาม -->
     <section v-if="doc.canSign" class="card stack no-print">
       <h3>ลงนามลำดับที่ {{ doc.current_step }}: {{ doc.steps[doc.current_step - 1].title }}</h3>
+      <fieldset v-if="curStep.decision" class="decision">
+        <legend>คำสั่งการ</legend>
+        <label class="row"><input v-model="dec.ack" type="checkbox" /> ทราบ</label>
+        <label class="row"><input v-model="dec.assign" type="checkbox" /> มอบ</label>
+        <input v-if="dec.assign" v-model.trim="dec.assignTo" maxlength="150" aria-label="ผู้รับมอบ" placeholder="เช่น หน.งานบริหารและพัฒนาทรัพยากรบุคคล" />
+      </fieldset>
       <label v-if="auth.user.has_signature" class="row"><input v-model="useSaved" type="checkbox" /> ใช้ลายเซ็นที่บันทึกไว้ในโปรไฟล์</label>
       <SignaturePad v-if="!useSaved || !auth.user.has_signature" @change="(v) => (drawn = v)" />
       <label class="field"><span>ความเห็น (ไม่บังคับ / จำเป็นเมื่อส่งกลับแก้ไข)</span><textarea v-model="comment" maxlength="500" /></label>
       <div class="row">
         <button class="btn grow danger" :disabled="busy" @click="sendBack">ส่งกลับแก้ไข</button>
-        <button class="btn primary grow" :disabled="busy || (!useSaved && !drawn)" @click="sign">✍ ลงนาม</button>
+        <button class="btn primary grow" :disabled="busy || (!useSaved && !drawn) || (curStep.decision && !dec.ack && !(dec.assign && dec.assignTo))" @click="sign">✍ ลงนาม</button>
       </div>
     </section>
 
@@ -89,6 +102,7 @@
         <li><div class="main">สร้างเอกสาร · {{ doc.created_by_name }} · {{ dt(doc.created_at) }}</div></li>
         <li v-for="s in doc.signatures" :key="s.id"><div class="main">
           {{ s.action === 'sign' ? `ลงนามลำดับที่ ${s.step}` : `ส่งกลับแก้ไข (ลำดับที่ ${s.step})` }} · {{ s.signer_name }} · {{ dt(s.signed_at) }}
+          <template v-if="s.decision"> · {{ [s.decision.ack && 'ทราบ', s.decision.assign && `มอบ ${s.decision.assignTo}`].filter(Boolean).join(' / ') }}</template>
           <template v-if="s.comment"> · “{{ s.comment }}”</template></div></li>
       </ul>
     </section>
@@ -102,6 +116,7 @@ import { useRoute } from 'vue-router';
 import { api, auth, imageUrl } from '../api';
 import { askPassword } from '../confirm';
 import SignaturePad from '../components/SignaturePad.vue';
+import HrDailyPaper from '../components/HrDailyPaper.vue';
 
 const route = useRoute();
 const STATUS_TXT = { pending: 'รอลงนาม', approved: 'อนุมัติแล้ว', returned: 'ส่งกลับแก้ไข' };
@@ -119,6 +134,8 @@ const useSaved = ref(true);
 const drawn = ref(null);
 const comment = ref('');
 const sigUrls = ref({});
+const dec = ref({ ack: true, assign: false, assignTo: 'หน.งานบริหารและพัฒนาทรัพยากรบุคคล' });
+const curStep = computed(() => doc.value.steps[doc.value.current_step - 1] || {});
 
 const snap = computed(() => doc.value.snapshot);
 const fmt = (v) => (v === null || v === undefined ? '-' : Number.isInteger(v) ? String(v) : Number(v).toFixed(2));
@@ -157,6 +174,7 @@ async function sign() {
   error.value = '';
   try {
     const body = { password, comment: comment.value };
+    if (curStep.value.decision) body.decision = dec.value;
     if (!(useSaved.value && auth.user.has_signature)) body.signature = drawn.value;
     await api(`/api/report-docs/${doc.value.id}/sign`, { method: 'POST', body });
     msg.value = 'ลงนามแล้ว';
@@ -240,6 +258,8 @@ onMounted(() => {
 .step.wait { opacity: .75; }
 .acct .warn { color: var(--warn); }
 .acct .okc { color: var(--ok); }
+.decision { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; gap: 6px; }
+.decision legend { padding: 0 6px; color: var(--muted); font-size: .85rem; }
 .meta { margin-top: 18px; font-size: 11px; color: #666; text-align: center; }
 @media print {
   .paper { box-shadow: none; padding: 0; margin: 0; font-size: 13px; overflow: visible; }

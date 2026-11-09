@@ -70,7 +70,7 @@ describe('แม่แบบและส่งออก Excel', () => {
     const codes = [];
     ws.eachRow((row, n) => { if (n > 1) codes.push(row.getCell(1).value); });
     expect(codes.sort()).toEqual(['ADM', 'T1', 'T2']);
-    expect(ws.getRow(1).getCell(10).value).toMatch(/สถานะรหัสผ่าน/);
+    expect(ws.getRow(1).getCell(11).value).toMatch(/สถานะรหัสผ่าน/);
     expect(JSON.stringify(ws.getSheetValues())).not.toMatch(/\$2[aby]\$/); // ไม่มี bcrypt hash
   });
 
@@ -195,7 +195,7 @@ describe('API ภายนอก', () => {
     expect(r.status).toBe(200);
     expect(r.body.items).toHaveLength(2);
     expect(r.body.total).toBeGreaterThan(2);
-    expect(Object.keys(r.body.items[0]).sort()).toEqual(['active', 'department', 'division', 'email', 'employee_code', 'full_name', 'must_assemble', 'position_title', 'role', 'updated_at']);
+    expect(Object.keys(r.body.items[0]).sort()).toEqual(['active', 'department', 'division', 'email', 'employee_code', 'full_name', 'must_assemble', 'position_title', 'role', 'staff_type', 'updated_at']);
     const one = await h.request(h.app).get('/api/ext/v1/users/T1').set('X-API-Key', readKey);
     expect(one.body.full_name).toBe('ครูหนึ่ง (แก้ชื่อ)');
     expect((await h.request(h.app).get('/api/ext/v1/users/NOPE').set('X-API-Key', readKey)).status).toBe(404);

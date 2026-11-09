@@ -166,6 +166,57 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    id: '2026-11-09-13-hr-daily',
+    // งานบุคลากร: บทบาทเจ้าหน้าที่บุคลากร ประเภทบุคลากร ประเภทการลา ผู้มาสาย/ไม่ลงเวลากลับ
+    // และแบบ "สรุปการปฏิบัติงานประจำวัน" แทนแบบบันทึกกิจกรรมหน้าเสาธง (เอกสารเดิมยังเปิดดู/ลงนามต่อได้)
+    sql: [
+      "ALTER TABLE users MODIFY role ENUM('staff','dept_head','activity','hr','executive','admin') NOT NULL DEFAULT 'staff'",
+      'ALTER TABLE users ADD COLUMN staff_type VARCHAR(30) NULL AFTER position_title',
+      'ALTER TABLE attendance ADD COLUMN leave_type VARCHAR(20) NULL AFTER status',
+      "ALTER TABLE attendance MODIFY method ENUM('self_gps','self_qr','self_tap','proxy_dept','proxy_peer','proxy_activity','hr','admin') NOT NULL",
+      `CREATE TABLE IF NOT EXISTS hr_marks (
+         day         DATE NOT NULL,
+         user_id     INT UNSIGNED NOT NULL,
+         kind        ENUM('late','no_signout') NOT NULL,
+         note        VARCHAR(200) NOT NULL DEFAULT '',
+         created_by  INT UNSIGNED NOT NULL,
+         created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         PRIMARY KEY (day, user_id, kind),
+         CONSTRAINT fk_hrm_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      "ALTER TABLE report_docs ADD COLUMN kind VARCHAR(20) NOT NULL DEFAULT 'assembly' AFTER id",
+      'ALTER TABLE report_signatures ADD COLUMN decision JSON NULL',
+    ],
+    after: async () => {
+      const set = (k, v) => db.query('INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)', [k, v]);
+      await set('report_form_title', 'สรุปการปฏิบัติงานของข้าราชการครู และบุคลากรทางการศึกษา');
+      const steps = [
+        [1, 'หัวหน้างานบริหารและพัฒนาทรัพยากรบุคคล', 'ผู้รายงาน', '%จารุณี%คบสหาย%'],
+        [2, 'รองผู้อำนวยการฝ่ายบริหารทรัพยากร', 'ผู้ตรวจสอบ', '%ปรีชา%อารีวงษ์%'],
+        [3, 'ผู้อำนวยการวิทยาลัยเทคนิคชัยภูมิ', 'ผู้อำนวยการ', '%กรรณิกา%ยอดสง่า%'],
+      ];
+      for (const [n, title, label, name] of steps) {
+        await set(`sign_step${n}_title`, title);
+        await set(`sign_step${n}_label`, label);
+        const [u] = await db.query('SELECT id FROM users WHERE full_name LIKE ? AND active = 1 LIMIT 1', [name]);
+        await set(`sign_step${n}_user`, u ? String(u.id) : '');
+      }
+      // บุคลากรในงานบริหารและพัฒนาทรัพยากรบุคคล = เจ้าหน้าที่บุคลากร (ผู้ดูแลระบบเปลี่ยนได้)
+      await db.query(
+        `UPDATE users u JOIN departments d ON d.id = u.department_id SET u.role = 'hr'
+          WHERE d.name = 'งานบริหารและพัฒนาทรัพยากรบุคคล' AND u.role = 'staff'`);
+      require('../src/services/settings').invalidate();
+    },
+  },
+  {
+    id: '2026-11-09-14-demo-hr',
+    // ข้อมูลจำลองงานบุคลากร: ผู้มาสาย/ไม่ลงเวลากลับ และประเภทบุคลากรตัวอย่าง ลบออกได้โดยไม่กระทบข้อมูลจริง
+    sql: [
+      'ALTER TABLE hr_marks ADD COLUMN is_demo TINYINT(1) NOT NULL DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN staff_type_demo TINYINT(1) NOT NULL DEFAULT 0 AFTER staff_type',
+    ],
+  },
 ];
 
 async function migrate() {

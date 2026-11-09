@@ -7,6 +7,8 @@
     <section class="stats">
       <div class="stat"><b>{{ st.demoRows ?? '–' }}</b><span>รายการข้อมูลจำลอง</span></div>
       <div class="stat"><b>{{ st.realRows ?? '–' }}</b><span>รายการข้อมูลจริง</span></div>
+      <div class="stat"><b>{{ st.demoMarks ?? '–' }}</b><span>มาสาย/ไม่ลงเวลากลับ (จำลอง)</span></div>
+      <div class="stat"><b>{{ st.demoStaffTypes ?? '–' }}</b><span>ประเภทบุคลากรตัวอย่าง</span></div>
     </section>
     <p v-if="st.demoRows" class="small muted">ข้อมูลจำลองช่วง {{ thaiDate(st.demoFrom, false) }} – {{ thaiDate(st.demoTo, false) }}</p>
 
@@ -14,6 +16,10 @@
       <h2>1. จำลองข้อมูลการเข้าแถว</h2>
       <p class="small">สร้างข้อมูลย้อนหลังให้บุคลากรทุกคน (ถึงเมื่อวาน) เพื่อฝึกใช้งานและดูรายงานทุกรูปแบบ
         แต่ละหน่วยงานมีอัตราเข้าแถวต่างกัน ไม่ทับวันที่มีข้อมูลจริง และรายงานจะขึ้นป้าย "มีข้อมูลจำลอง"</p>
+      <p class="small"><b>งานบุคลากร:</b> ไปราชการ / งานนโยบาย / ลาป่วย / ลากิจ / ลาอื่น ๆ พร้อมรายละเอียด บันทึกโดยเจ้าหน้าที่บุคลากร
+        และรายชื่อผู้มาสาย/ไม่ลงเวลากลับ — เจ้าหน้าที่บุคลากรฝึกสร้าง “รายงานสรุปการปฏิบัติงานประจำวัน” ได้ทันที</p>
+      <label class="row small"><input v-model="staffTypes" type="checkbox" />
+        <span>กำหนดประเภทบุคลากรตัวอย่างให้คนที่ยังไม่กำหนด ({{ st.unclassified ?? 0 }} คน) — ลบออกพร้อมข้อมูลจำลอง ประเภทที่กำหนดเองไม่ถูกแตะ</span></label>
       <label class="field"><span>ย้อนหลัง (สัปดาห์)</span>
         <select v-model.number="weeks"><option v-for="w in [1, 2, 4, 8, 12, 18]" :key="w" :value="w">{{ w }} สัปดาห์</option></select></label>
       <button class="btn primary" :disabled="busy" @click="simulate">🎲 จำลองข้อมูล</button>
@@ -43,6 +49,7 @@ import { thaiDate } from '../../util';
 
 const st = ref({});
 const weeks = ref(4);
+const staffTypes = ref(true);
 const confirmText = ref('');
 const busy = ref(false);
 const error = ref('');
@@ -72,9 +79,9 @@ async function run(title, url, body, detail, danger) {
 }
 
 async function simulate() {
-  const r = await run('ยืนยันการจำลองข้อมูล', '/api/admin/demo/simulate', { weeks: weeks.value },
+  const r = await run('ยืนยันการจำลองข้อมูล', '/api/admin/demo/simulate', { weeks: weeks.value, staffTypes: staffTypes.value },
     `สร้างข้อมูลจำลอง ${weeks.value} สัปดาห์ย้อนหลังให้บุคลากรทุกคน`);
-  if (r) msg.value = `สร้างข้อมูลจำลอง ${r.inserted} รายการ (${r.days} วันเข้าแถว, ${r.users} คน)`;
+  if (r) msg.value = `สร้างข้อมูลจำลอง ${r.inserted} รายการ (${r.days} วันเข้าแถว, ${r.users} คน) · มาสาย/ไม่ลงเวลากลับ ${r.marks} รายการ${r.staffTypes ? ` · ประเภทบุคลากรตัวอย่าง ${r.staffTypes} คน` : ''}`;
 }
 async function clearDemo() {
   const r = await run('ยืนยันการลบข้อมูลจำลอง', '/api/admin/demo/clear', {}, 'ลบเฉพาะข้อมูลจำลอง ข้อมูลจริงไม่ถูกลบ');

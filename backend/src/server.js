@@ -11,6 +11,13 @@ async function main() {
     console.log(`lineup API listening on :${config.port} (${config.env})`);
   });
 
+  // หลังกู้คืนระบบ (ทำโดย container backup): อัปเดตโครงสร้างตารางให้เป็นรุ่นปัจจุบัน และล้าง cache ค่าระบบ
+  require('./services/backups').watchRestore(async (r) => {
+    console.log(`restore finished (${r.db}) — running migrations`);
+    await migrate();
+    require('./services/settings').invalidate();
+  });
+
   // ลบรูปหลักฐานที่เกินระยะเวลาเก็บ (PDPA) วันละครั้ง
   const runCleanup = () => cleanupPhotos().catch((e) => console.error('photo cleanup failed', e));
   setTimeout(runCleanup, 60_000);

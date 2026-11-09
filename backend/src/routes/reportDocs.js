@@ -13,6 +13,10 @@ router.get('/pending-count', async (req, res) => {
   res.json({ count: await official.pendingCount(req.user) });
 });
 
+router.get('/preview', async (req, res) => {
+  res.json(await official.preview(req.user, String(req.query.day || '')));
+});
+
 router.post('/', async (req, res) => {
   res.status(201).json(await official.create(req.user, req.body || {}));
 });

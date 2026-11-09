@@ -168,7 +168,7 @@ LINE_CHANNEL_SECRET=ค่าจากหน้า Basic settings
 | ดูสถานะ | `cd /opt/lineup/deploy && sudo docker compose ps` |
 | ดู log ล่าสุด | `sudo docker compose logs app --tail 100` |
 | สำรองทันที | ☰ → 💾 สำรองตอนนี้ หรือ `sudo bash /opt/lineup/deploy/backup.sh` |
-| ไฟล์สำรอง | `/opt/lineup/deploy/backups/` (db-*.sql.gz และ uploads-*.tar.gz) |
+| ไฟล์สำรอง | `/opt/lineup/deploy/backups/` (db-*.sql.gz และ uploads-*.tar.gz) · สำรองด้วยคำสั่ง `sudo docker compose exec backup bash /run.sh backup` |
 | ต่ออายุ HTTPS | อัตโนมัติ หรือ `sudo bash /opt/lineup/deploy/renew-cert.sh renew` |
 
 ### อัปเดตเป็นเวอร์ชันใหม่
@@ -187,19 +187,41 @@ cd /opt/lineup/deploy && sudo docker compose up -d --build
 
 ระบบปรับโครงสร้างฐานข้อมูล (migration) ให้อัตโนมัติตอนเริ่ม ข้อมูลเดิมไม่หาย
 
-### กู้คืนฐานข้อมูลจากไฟล์สำรอง
+### สำรองและกู้คืนระบบ
+
+มี 2 ระดับ:
+
+| ระดับ | ใคร | ได้อะไร | ใช้ทำอะไร |
+| --- | --- | --- | --- |
+| ผู้ใช้ | เจ้าหน้าที่บุคลากร งานกิจกรรม ผู้บริหาร หัวหน้าแผนก | Excel งานของตนเอง (เมนู ☰ → สำรองข้อมูลงานของฉัน) | เปิดอ่าน ทำรายงานต่อ เก็บเป็นหลักฐาน |
+| ผู้ดูแลระบบ | admin | ไฟล์กู้คืนทั้งระบบ `lineup-full-….tar` = ฐานข้อมูล + รูปหลักฐาน + ลายเซ็น | กู้คืนเมื่อข้อมูลเสียหายหรือย้ายเซิร์ฟเวอร์ |
+
+**ควรดาวน์โหลดไฟล์กู้คืนทั้งระบบเก็บไว้นอกเซิร์ฟเวอร์อย่างน้อยสัปดาห์ละครั้ง** (☰ → สำรองและกู้คืนระบบ → ⬇ ไฟล์กู้คืนทั้งระบบ)
+
+**กู้คืนผ่านหน้าเว็บ (แนะนำ):** ☰ → สำรองและกู้คืนระบบ → หัวข้อ 3 กู้คืนระบบ → เลือกรอบสำรองบนเซิร์ฟเวอร์ หรืออัปโหลดไฟล์ `.tar` / `db-….sql.gz`
+→ พิมพ์ `กู้คืนระบบ` และใส่รหัสผ่าน ระบบจะ:
+
+1. สำรองข้อมูลปัจจุบันก่อนอัตโนมัติ (ไฟล์ `db-…` เหตุผล "ก่อนกู้คืนระบบ") — ย้อนกลับได้
+2. ล้างฐานข้อมูลแล้วนำเข้าไฟล์สำรอง และคืนรูปหลักฐาน/ลายเซ็น
+3. ปรับโครงสร้างตารางให้เป็นรุ่นปัจจุบัน (ไฟล์สำรองจากรุ่นเก่าใช้ได้)
+
+ใช้เวลา 1–3 นาที ระหว่างนั้นผู้ใช้อาจใช้งานไม่ได้ชั่วคราว ผู้ใช้อาจต้องเข้าสู่ระบบใหม่ (รหัสผ่านตามข้อมูลในไฟล์สำรอง)
+
+**เซิร์ฟเวอร์เสียทั้งเครื่อง:** ติดตั้งเครื่องใหม่ตามหัวข้อ 3–5 → เข้าด้วย admin ของเครื่องใหม่ → อัปโหลดไฟล์ `lineup-full-….tar` ล่าสุดแล้วกู้คืน
+
+**กู้คืนด้วยคำสั่ง (เมื่อหน้าเว็บเปิดไม่ได้):** วางไฟล์ไว้ใน `/opt/lineup/deploy/backups/` แล้ว
 
 ```bash
-cd /opt/lineup/deploy
-gunzip -c backups/db-20261108-0000.sql.gz | sudo docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" lineup'
+cd /opt/lineup/deploy && sudo docker compose exec backup bash /run.sh restore db-20261108-0000.sql.gz uploads-20261108-0000.tar.gz
 ```
 
-กู้รูปหลักฐาน:
+ไฟล์ `lineup-full-….tar` ให้แตกก่อน (`sudo tar -xf lineup-full-20261108-0000.tar -C backups/`) จากนั้นเริ่มแอปใหม่เพื่อปรับโครงสร้างตาราง:
 
 ```bash
-sudo docker compose cp backups/uploads-20261108-0000.tar.gz app:/tmp/u.tgz
-sudo docker compose exec app tar -xzf /tmp/u.tgz -C /app
+sudo docker compose restart app
 ```
+
+ผลการกู้คืนล่าสุดอยู่ที่ `backups/restore-last.json`
 
 ### เพิ่มบุคลากรใหม่จาก Excel ฉบับใหม่
 

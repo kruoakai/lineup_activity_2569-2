@@ -17,8 +17,9 @@ const { HttpError } = require('../middleware/auth');
 
 const MAX_ROWS = 2000;
 
-const ROLE_TH = { staff: 'บุคลากร', dept_head: 'หัวหน้าแผนก', activity: 'เจ้าหน้าที่งานกิจกรรม', executive: 'ผู้บริหาร', admin: 'ผู้ดูแลระบบ' };
-const IMPORT_ROLES = ['staff', 'dept_head', 'activity', 'executive'];
+const ROLE_TH = { staff: 'บุคลากร', dept_head: 'หัวหน้าแผนก', activity: 'เจ้าหน้าที่งานกิจกรรม', hr: 'เจ้าหน้าที่บุคลากร', executive: 'ผู้บริหาร', admin: 'ผู้ดูแลระบบ' };
+const IMPORT_ROLES = ['staff', 'dept_head', 'activity', 'hr', 'executive'];
+const staffTypes = require('./staffTypes');
 const YES = ['ใช่', 'ต้อง', 'y', 'yes', 'true', '1', 'ใช้งาน', 'active'];
 const NO = ['ไม่', 'ไม่ใช่', 'ไม่ต้อง', 'n', 'no', 'false', '0', 'ระงับ', 'inactive'];
 
@@ -30,6 +31,7 @@ const COLUMNS = [
   { key: 'division', header: 'ฝ่าย', width: 28, aliases: ['โครงสร้างระดับที่ 2', 'division'] },
   { key: 'department', header: 'แผนก/งาน*', width: 32, aliases: ['แผนก', 'งาน', 'โครงสร้างระดับที่ 3', 'department'] },
   { key: 'position_title', header: 'ตำแหน่ง', width: 22, aliases: ['position_title'] },
+  { key: 'staff_type', header: 'ประเภทบุคลากร', width: 30, aliases: ['staff_type', 'ประเภท'] },
   { key: 'role', header: 'บทบาท', width: 22, aliases: ['role'] },
   { key: 'must_assemble', header: 'ต้องเข้าแถว', width: 13, aliases: ['must_assemble'] },
   { key: 'active', header: 'สถานะบัญชี', width: 13, aliases: ['สถานะ', 'active'] },
@@ -87,6 +89,9 @@ function normalizeRow(raw) {
     if (v) r[k] = v;
   }
   try { r.role = parseRole(raw.role); } catch (e) { errors.push(e.message); }
+  const st = staffTypes.parse(raw.staff_type);
+  if (st === null) errors.push(`ประเภทบุคลากร "${clean(raw.staff_type)}" ไม่ถูกต้อง (ดูชีต วิธีกรอก)`);
+  else r.staff_type = st;
   try { r.must_assemble = parseBool(raw.must_assemble, 'ต้องเข้าแถว'); } catch (e) { errors.push(e.message); }
   try { r.active = parseBool(raw.active, 'สถานะบัญชี'); } catch (e) { errors.push(e.message); }
   if (r.division && !r.department) errors.push('ระบุฝ่ายแล้วต้องระบุแผนก/งานด้วย');
@@ -136,7 +141,7 @@ async function parseWorkbook(buffer) {
 
 async function loadState() {
   const users = await db.query(
-    `SELECT u.id, u.employee_code, u.email, u.full_name, u.position_title, u.role, u.must_assemble, u.active,
+    `SELECT u.id, u.employee_code, u.email, u.full_name, u.position_title, u.staff_type, u.role, u.must_assemble, u.active,
             d.name AS department, d.division
        FROM users u LEFT JOIN departments d ON d.id = u.department_id`);
   const depts = await db.query('SELECT id, name, division FROM departments');
@@ -206,6 +211,7 @@ async function plan(rawRows, { actorId, deactivateMissing = false } = {}) {
       full_name: row.full_name,
       email: row.email,
       position_title: row.position_title,
+      staff_type: row.staff_type,
       role: row.role,
       must_assemble: row.must_assemble === undefined ? undefined : row.must_assemble ? 1 : 0,
       active: row.active === undefined ? undefined : row.active ? 1 : 0,
@@ -276,13 +282,14 @@ async function apply(p) {
         if (r.action === 'create') {
           const d = r.data;
           await t.query(
-            `INSERT INTO users (employee_code, full_name, email, position_title, department_id, role, must_assemble, active, password_hash, must_change_password)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [r.employee_code, d.full_name, d.email || null, d.position_title || '', (await deptId(r.dept)) ?? null, d.role, d.must_assemble, d.active, hash]);
+            `INSERT INTO users (employee_code, full_name, email, position_title, staff_type, department_id, role, must_assemble, active, password_hash, must_change_password)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [r.employee_code, d.full_name, d.email || null, d.position_title || '', d.staff_type || null, (await deptId(r.dept)) ?? null, d.role, d.must_assemble, d.active, hash]);
         } else if (r.action === 'update') {
           const set = {};
           for (const [k, c] of Object.entries(r.changes)) if (k !== 'department') set[k] = c.to;
           if (r.dept) set.department_id = await deptId(r.dept);
+          if (set.staff_type !== undefined) set.staff_type_demo = 0;
           await t.query('UPDATE users SET ? WHERE id = ?', [set, r.id]);
           if (set.active === 0) revoke.push(r.id);
         }
@@ -316,6 +323,7 @@ function addValidation(ws, deptNames) {
   const roleList = `"${IMPORT_ROLES.map((r) => ROLE_TH[r]).join(',')}"`;
   const col = (key) => String.fromCharCode(65 + COLUMNS.findIndex((c) => c.key === key));
   for (let r = 2; r <= MAX_ROWS + 1; r += 1) {
+    ws.getCell(`${col('staff_type')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${staffTypes.STAFF_TYPES.map((t) => t.short).join(',')}"`], showErrorMessage: false };
     ws.getCell(`${col('role')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [roleList], showErrorMessage: true, errorTitle: 'บทบาท', error: 'เลือกจากรายการ' };
     ws.getCell(`${col('must_assemble')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"ใช่,ไม่"'] };
     ws.getCell(`${col('active')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"ใช้งาน,ระงับ"'] };
@@ -337,7 +345,8 @@ function addGuide(wb, depts) {
     ['ฝ่าย', 'ไม่บังคับ · เช่น ฝ่ายบริหารทรัพยากร'],
     ['แผนก/งาน*', 'จำเป็นสำหรับคนใหม่ · พิมพ์ตรงกับชีต "แผนกที่มีในระบบ" · ถ้าพิมพ์ชื่อใหม่ ระบบจะสร้างแผนกให้'],
     ['ตำแหน่ง', 'ไม่บังคับ · เช่น ครู, รองผู้อำนวยการ (แสดงในเอกสารลงนาม)'],
-    ['บทบาท', 'เลือก: บุคลากร / หัวหน้าแผนก / เจ้าหน้าที่งานกิจกรรม / ผู้บริหาร · เว้นว่าง = บุคลากร (คนใหม่) หรือคงเดิม (คนเดิม)'],
+    ['ประเภทบุคลากร', `ใช้นับจำนวนในรายงานสรุปการปฏิบัติงานประจำวัน · เลือก: ${staffTypes.STAFF_TYPES.map((t) => t.short).join(' / ')} · เว้นว่าง = คงเดิม`],
+    ['บทบาท', 'เลือก: บุคลากร / หัวหน้าแผนก / เจ้าหน้าที่งานกิจกรรม / เจ้าหน้าที่บุคลากร / ผู้บริหาร · เว้นว่าง = บุคลากร (คนใหม่) หรือคงเดิม (คนเดิม)'],
     ['ต้องเข้าแถว', 'ใช่ / ไม่ · เว้นว่าง = ใช่ (คนใหม่) หรือคงเดิม'],
     ['สถานะบัญชี', 'ใช้งาน / ระงับ · เว้นว่าง = ใช้งาน (คนใหม่) หรือคงเดิม'],
     ['', ''],
@@ -374,7 +383,7 @@ async function templateWorkbook() {
   const ws = wb.addWorksheet('รายชื่อบุคลากร', { views: [{ state: 'frozen', ySplit: 1 }] });
   ws.columns = COLUMNS.map((c) => ({ key: c.key, header: c.header, width: c.width }));
   styleHeader(ws, COLUMNS.length);
-  const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', full_name: 'นายสมชาย ใจดี', email: 'somchai@example.com', division: 'ฝ่ายวิชาการ', department: 'เทคโนโลยีสารสนเทศ', position_title: 'ครู', role: 'บุคลากร', must_assemble: 'ใช่', active: 'ใช้งาน' });
+  const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', full_name: 'นายสมชาย ใจดี', email: 'somchai@example.com', division: 'ฝ่ายวิชาการ', department: 'เทคโนโลยีสารสนเทศ', position_title: 'ครู', staff_type: 'ครูอัตราจ้าง', role: 'บุคลากร', must_assemble: 'ใช่', active: 'ใช้งาน' });
   ex.font = { italic: true, color: { argb: 'FF8A94A3' } };
   const depts = await departmentsList();
   addGuide(wb, depts);
@@ -384,7 +393,7 @@ async function templateWorkbook() {
 
 async function exportWorkbook() {
   const rows = await db.query(
-    `SELECT u.employee_code, u.full_name, u.email, d.division, d.name AS department, u.position_title, u.role,
+    `SELECT u.employee_code, u.full_name, u.email, d.division, d.name AS department, u.position_title, u.staff_type, u.role,
             u.must_assemble, u.active, u.must_change_password, u.line_user_id IS NOT NULL AS has_line,
             (SELECT MAX(created_at) FROM refresh_tokens t WHERE t.user_id = u.id) AS last_login
        FROM users u LEFT JOIN departments d ON d.id = u.department_id
@@ -405,7 +414,7 @@ async function exportWorkbook() {
   for (const r of rows) {
     ws.addRow({
       employee_code: r.employee_code, full_name: r.full_name, email: r.email || '', division: r.division || '', department: r.department || '',
-      position_title: r.position_title || '', role: ROLE_TH[r.role], must_assemble: r.must_assemble ? 'ใช่' : 'ไม่', active: r.active ? 'ใช้งาน' : 'ระงับ',
+      position_title: r.position_title || '', staff_type: staffTypes.BY_CODE.get(r.staff_type)?.short || '', role: ROLE_TH[r.role], must_assemble: r.must_assemble ? 'ใช่' : 'ไม่', active: r.active ? 'ใช้งาน' : 'ระงับ',
       password_state: r.must_change_password ? 'ยังไม่เปลี่ยน (ต้องเปลี่ยนเมื่อเข้าครั้งแรก)' : 'เปลี่ยนแล้ว',
       line: r.has_line ? 'เชื่อมแล้ว' : '',
       last_login: r.last_login ? new Date(r.last_login).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'ยังไม่เคย',
@@ -422,7 +431,7 @@ async function exportWorkbook() {
 function publicUser(u) {
   return {
     employee_code: u.employee_code, full_name: u.full_name, email: u.email || null,
-    division: u.division || '', department: u.department || '', position_title: u.position_title || '',
+    division: u.division || '', department: u.department || '', position_title: u.position_title || '', staff_type: u.staff_type || null,
     role: u.role, must_assemble: !!u.must_assemble, active: !!u.active, updated_at: u.updated_at,
   };
 }

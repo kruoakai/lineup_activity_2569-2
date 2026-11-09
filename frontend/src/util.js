@@ -15,13 +15,26 @@ export const METHOD = {
   proxy_dept: 'ครูในแผนกเช็กแทน',
   proxy_peer: 'เพื่อนในแผนกเช็กแทน',
   proxy_activity: 'งานกิจกรรมบันทึก',
+  hr: 'งานบุคลากรบันทึก',
   admin: 'ผู้ดูแลระบบบันทึก',
 };
+
+// ประเภทบุคลากร (ชื่อย่อ) — ตรงกับ backend/src/services/staffTypes.js
+export const STAFF_SHORT = {
+  executive: 'ผู้บริหาร', gov_teacher: 'ขรก.ครู', assistant_teacher: 'ครูผู้ช่วย', gov_38c2: 'ขรก.38ค(2)', gov_emp_teacher: 'พนักงานราชการ (ครู)',
+  gov_emp_general: 'พนักงานราชการ', temp_teacher: 'ครูอัตราจ้าง', temp_officer: 'เจ้าหน้าที่', temp_janitor: 'นักการ',
+  temp_driver: 'พนักงานขับรถ', temp_guard: 'ยาม', trainee: 'นศ.ฝึกสอน',
+};
+
+export const LEAVE_TYPE = { sick: 'ลาป่วย', personal: 'ลากิจ', other: 'ลาอื่น ๆ' };
+// ป้ายสถานะ รวมประเภทการลา เช่น "ลาป่วย"
+export const statusLabel = (r) => (r?.status === 'leave' && LEAVE_TYPE[r.leave_type]) || STATUS[r?.status]?.label || '';
 
 export const ROLE = {
   staff: 'บุคลากร',
   dept_head: 'หัวหน้าแผนก',
   activity: 'เจ้าหน้าที่งานกิจกรรม',
+  hr: 'เจ้าหน้าที่บุคลากร',
   executive: 'ผู้บริหาร',
   admin: 'ผู้ดูแลระบบ',
 };

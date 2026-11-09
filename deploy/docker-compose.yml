@@ -71,7 +71,7 @@ services:
     volumes:
       - ./backup/run.sh:/run.sh:ro
       - ./backups:/backups
-      - uploads:/uploads:ro
+      - uploads:/uploads   # เขียนได้ เพื่อกู้คืนรูป/ลายเซ็น
     networks: [internal]
 
   nginx:

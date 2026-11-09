@@ -15,14 +15,44 @@ function weighted(pairs) {
 async function status() {
   const [d] = await db.query('SELECT COUNT(*) AS n, MIN(day) AS from_day, MAX(day) AS to_day FROM attendance WHERE is_demo = 1');
   const [r] = await db.query('SELECT COUNT(*) AS n FROM attendance WHERE is_demo = 0');
-  return { demoRows: d.n, demoFrom: d.from_day, demoTo: d.to_day, realRows: r.n };
+  const [m] = await db.query('SELECT COUNT(*) AS n FROM hr_marks WHERE is_demo = 1');
+  const [t] = await db.query('SELECT COUNT(*) AS n FROM users WHERE staff_type_demo = 1');
+  const [u] = await db.query("SELECT COUNT(*) AS n FROM users WHERE active = 1 AND staff_type IS NULL AND role <> 'admin'");
+  return { demoRows: d.n, demoFrom: d.from_day, demoTo: d.to_day, realRows: r.n, demoMarks: m.n, demoStaffTypes: t.n, unclassified: u.n };
+}
+
+// ---------- งานบุคลากร ----------
+const NOTES = {
+  official: ['ประชุมที่สำนักงานคณะกรรมการการอาชีวศึกษา', 'อบรมพัฒนาครูตามคำสั่งวิทยาลัย', 'นำนักเรียนแข่งขันทักษะวิชาชีพ ระดับภาค',
+    'ติดต่อราชการที่สำนักงานจังหวัดชัยภูมิ', 'นิเทศนักศึกษาฝึกงานในสถานประกอบการ', 'ประชุมเครือข่ายอาชีวศึกษาภาคตะวันออกเฉียงเหนือ'],
+  policy: ['ประชุมคณะกรรมการตามนโยบายวิทยาลัย', 'ปฏิบัติงานโครงการอาชีวะอาสา', 'ออกหน่วยบริการ Fix It Center', 'ประชาสัมพันธ์รับสมัครนักศึกษา'],
+  sick: ['ไข้หวัด', 'พบแพทย์ตามนัด', 'ปวดท้อง', ''],
+  personal: ['ธุระส่วนตัว', 'ติดต่อราชการส่วนตัว', 'งานบุญของครอบครัว', ''],
+  other: ['ลาพักผ่อน', 'ลาคลอดบุตร', 'ลาอุปสมบท'],
+};
+
+// ประเภทบุคลากรตัวอย่าง (ใช้กับคนที่ยังไม่กำหนดเท่านั้น และลบได้พร้อมข้อมูลจำลอง)
+function guessStaffType(u) {
+  const dept = u.department || '';
+  if (u.role === 'executive' || /ผู้อำนวยการ/.test(u.position_title || '') || dept === 'วิทยาลัยเทคนิคชัยภูมิ') return 'executive';
+  if (/อาคารสถานที่|ยานพาหนะ/.test(dept)) return weighted([['temp_janitor', 6], ['temp_guard', 2], ['temp_driver', 2]]);
+  if (/^งาน/.test(dept)) return weighted([['temp_officer', 45], ['gov_teacher', 35], ['gov_emp_general', 15], ['gov_38c2', 5]]);
+  return weighted([['gov_teacher', 55], ['temp_teacher', 25], ['gov_emp_teacher', 10], ['assistant_teacher', 7], ['gov_38c2', 3]]);
+}
+
+async function demoStaffTypes() {
+  const users = await db.query(
+    `SELECT u.id, u.role, u.position_title, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
+      WHERE u.active = 1 AND u.staff_type IS NULL AND u.role <> 'admin'`);
+  for (const u of users) await db.query('UPDATE users SET staff_type = ?, staff_type_demo = 1 WHERE id = ?', [guessStaffType(u), u.id]);
+  return users.length;
 }
 
 /**
  * สร้างข้อมูลจำลองย้อนหลัง `weeks` สัปดาห์ (ถึงเมื่อวาน) ให้บุคลากรทุกคนที่ต้องเข้าแถว
  * ไม่ทับวันที่มีข้อมูลจริงอยู่แล้ว
  */
-async function simulate({ weeks = 4 } = {}) {
+async function simulate({ weeks = 4, staffTypes = true } = {}) {
   const w = Math.min(Math.max(Number(weeks) || 4, 1), 20);
   const today = clock.bangkok().day;
   const to = clock.addDays(today, -1);
@@ -35,6 +65,9 @@ async function simulate({ weeks = 4 } = {}) {
   );
   if (!users.length || !days.length) return { inserted: 0, days: days.length, users: users.length, from, to };
   const managers = (await db.query("SELECT id FROM users WHERE active = 1 AND role IN ('activity','admin')")).map((r) => r.id);
+  // สถานะลา/ราชการ/นโยบาย บันทึกโดยเจ้าหน้าที่บุคลากร (ถ้ามี)
+  const hrStaff = (await db.query("SELECT id FROM users WHERE active = 1 AND role IN ('hr','admin') ORDER BY role = 'admin'")).map((r) => r.id);
+  const typed = staffTypes ? await demoStaffTypes() : 0;
   const existing = new Set((await db.query('SELECT user_id, day FROM attendance WHERE day BETWEEN ? AND ?', [from, to]))
     .map((r) => `${r.user_id}|${r.day}`));
 
@@ -47,6 +80,7 @@ async function simulate({ weeks = 4 } = {}) {
   const dayFactor = new Map(days.map((d) => [d, Math.random() < 0.15 ? 0.93 : 1]));
 
   const rows = [];
+  const marks = [];
   for (const d of days) {
     for (const u of users) {
       if (existing.has(`${u.id}|${d}`)) continue;
@@ -55,8 +89,10 @@ async function simulate({ weeks = 4 } = {}) {
       if (Math.random() < p) st = 'present';
       else st = weighted([['absent', 50], ['official', 25], ['policy', 12], ['leave', 13]]);
       if (st === 'absent') continue; // ขาด = ไม่มีบันทึก (ระบบนับให้เอง)
-      let method = 'proxy_activity';
-      let by = managers.length ? pick(managers) : u.id;
+      let method = 'hr';
+      let by = hrStaff.length ? pick(hrStaff.slice(0, 2)) : managers.length ? pick(managers) : u.id;
+      let leaveType = null;
+      if (st === 'leave') leaveType = weighted([['sick', 55], ['personal', 35], ['other', 10]]);
       let distance = null;
       let inZone = null;
       let qrOk = 0;
@@ -68,27 +104,37 @@ async function simulate({ weeks = 4 } = {}) {
       const sec = 7 * 3600 + 30 * 60 + Math.floor(Math.random() * 55 * 60);
       const at = new Date(`${d}T00:00:00+07:00`).getTime() + sec * 1000;
       const flagged = st === 'present' && method.startsWith('self') && Math.random() < 0.01;
-      const note = st === 'official' ? 'ข้อมูลจำลอง: ไปราชการตามคำสั่ง' : st === 'policy' ? 'ข้อมูลจำลอง: งานนโยบาย' : st === 'leave' ? 'ข้อมูลจำลอง: ลา' : '';
-      rows.push([u.id, d, st, method, by, new Date(at), distance, inZone, qrOk, note, flagged ? 1 : 0,
+      const note = st === 'present' ? '' : pick(NOTES[leaveType || st]);
+      rows.push([u.id, d, st, leaveType, method, by, new Date(at), distance, inZone, qrOk, note, flagged ? 1 : 0,
         flagged ? 'อุปกรณ์เดียวกันถูกใช้เช็กชื่อหลายบัญชี' : '', 1]);
+      // ผู้มาลงเวลาเกินเวลากำหนด / ไม่ลงเวลากลับ (ข้อมูลจากเครื่องลงเวลา) เฉพาะคนที่มาทำงาน
+      if (st === 'present' && hrStaff.length) {
+        if (Math.random() < 0.04) marks.push([d, u.id, 'late', hrStaff[0], 1]);
+        if (Math.random() < 0.02) marks.push([d, u.id, 'no_signout', hrStaff[0], 1]);
+      }
     }
   }
   for (let i = 0; i < rows.length; i += 500) {
     await db.query(
-      `INSERT INTO attendance (user_id, day, status, method, checked_by, checked_at, distance_m, in_zone, qr_ok, note, flagged, flag_reason, is_demo)
+      `INSERT INTO attendance (user_id, day, status, leave_type, method, checked_by, checked_at, distance_m, in_zone, qr_ok, note, flagged, flag_reason, is_demo)
        VALUES ?`,
       [rows.slice(i, i + 500)],
     );
+  }
+  for (let i = 0; i < marks.length; i += 500) {
+    await db.query('INSERT IGNORE INTO hr_marks (day, user_id, kind, created_by, is_demo) VALUES ?', [marks.slice(i, i + 500)]);
   }
   await db.query('DELETE FROM attendance_events WHERE is_demo = 1');
   await db.query(
     `INSERT INTO attendance_events (attendance_id, user_id, day, action, new_status, method, actor_id, reason, is_demo, created_at)
      SELECT id, user_id, day, 'create', status, method, checked_by, 'ข้อมูลจำลอง', 1, checked_at FROM attendance WHERE is_demo = 1`,
   );
-  return { inserted: rows.length, days: days.length, users: users.length, from, to };
+  return { inserted: rows.length, marks: marks.length, staffTypes: typed, days: days.length, users: users.length, from, to };
 }
 
 async function clearDemo() {
+  await db.query('DELETE FROM hr_marks WHERE is_demo = 1');
+  await db.query('UPDATE users SET staff_type = NULL, staff_type_demo = 0 WHERE staff_type_demo = 1');
   await db.query('DELETE FROM attendance_events WHERE is_demo = 1');
   const r = await db.query('DELETE FROM attendance WHERE is_demo = 1');
   await db.query('DELETE FROM report_docs WHERE is_demo = 1');
@@ -106,6 +152,8 @@ async function resetAll() {
   for (const s of sigs) await files.removeUpload(s.signature_path);
   await db.query('DELETE FROM report_signatures');
   await db.query('DELETE FROM report_docs');
+  await db.query('DELETE FROM hr_marks');
+  await db.query('UPDATE users SET staff_type = NULL, staff_type_demo = 0 WHERE staff_type_demo = 1');
   return { removed: r.affectedRows, photos: photos.length };
 }
 

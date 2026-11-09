@@ -10,7 +10,7 @@ const { HttpError } = require('../middleware/auth');
 const STATUS = { present: 'มาเข้าแถว', absent: 'ขาด', official: 'ไปราชการ', policy: 'ติดงานนโยบาย', leave: 'ลา', pending: 'รอตรวจสอบ' };
 const METHOD = {
   self_gps: 'เช็กเอง (GPS)', self_qr: 'เช็กเอง (QR)', self_tap: 'เช็กเอง (กดปุ่ม)', proxy_dept: 'ครูในแผนกเช็กแทน',
-  proxy_peer: 'เพื่อนในแผนกเช็กแทน', proxy_activity: 'งานกิจกรรมบันทึก', admin: 'ผู้ดูแลระบบบันทึก',
+  proxy_peer: 'เพื่อนในแผนกเช็กแทน', proxy_activity: 'งานกิจกรรมบันทึก', hr: 'งานบุคลากรบันทึก', admin: 'ผู้ดูแลระบบบันทึก',
 };
 const DAY = { normal: 'มีเข้าแถว (วันพิเศษ)', special: 'กิจกรรมพิเศษ', cancelled: 'งดเข้าแถว', holiday: 'วันหยุด', public_holiday: 'วันหยุดนักขัตฤกษ์' };
 const COUNT_COLS = [
@@ -111,4 +111,4 @@ async function send(res, wb, filename) {
   res.end();
 }
 
-module.exports = { summaryWorkbook, fullWorkbook, send };
+module.exports = { summaryWorkbook, fullWorkbook, send, sheet, addSummarySheets, STATUS, METHOD };

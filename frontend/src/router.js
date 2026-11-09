@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { auth, refresh } from './api';
 
-const VIEW_REPORT = (u) => ['activity', 'executive', 'admin', 'dept_head'].includes(u.role) || u.can_proxy;
+const VIEW_REPORT = (u) => ['activity', 'hr', 'executive', 'admin', 'dept_head'].includes(u.role) || u.can_proxy;
+const HR = (u) => ['hr', 'admin'].includes(u.role);
 const MANAGE = (u) => ['activity', 'admin'].includes(u.role);
 
 const routes = [
@@ -11,6 +12,8 @@ const routes = [
   { path: '/setup', component: () => import('./views/Setup.vue'), meta: { setup: true } },
   { path: '/profile', component: () => import('./views/Profile.vue') },
   { path: '/executive', component: () => import('./views/Executive.vue') },
+  { path: '/my-backup', component: () => import('./views/MyBackup.vue') },
+  { path: '/hr', component: () => import('./views/Hr.vue'), meta: { can: HR } },
   { path: '/report-docs', component: () => import('./views/ReportDocs.vue') },
   { path: '/report-docs/:id', component: () => import('./views/ReportDoc.vue') },
   { path: '/admin/data', component: () => import('./views/admin/DataTools.vue'), meta: { can: (u) => u.role === 'admin' } },

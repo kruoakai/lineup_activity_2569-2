@@ -13,7 +13,7 @@ const router = express.Router();
 router.use(authenticateKey);
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const USER_SQL = `SELECT u.id, u.employee_code, u.full_name, u.email, u.position_title, u.role, u.must_assemble, u.active, u.updated_at,
+const USER_SQL = `SELECT u.id, u.employee_code, u.full_name, u.email, u.position_title, u.staff_type, u.role, u.must_assemble, u.active, u.updated_at,
                          d.name AS department, d.division
                     FROM users u LEFT JOIN departments d ON d.id = u.department_id`;
 

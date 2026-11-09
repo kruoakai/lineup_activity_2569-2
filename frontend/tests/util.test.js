@@ -1,7 +1,7 @@
 // Unit tests ฝั่งหน้าเว็บ (node --test) — ฟังก์ชันจัดรูปแบบวันเวลาและระยะทาง
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { thaiDate, thaiRange, thaiTime, addDays, weekStart, distanceMeters, STATUS, METHOD } from '../src/util.js';
+import { thaiDate, thaiRange, statusLabel, ROLE, thaiTime, addDays, weekStart, distanceMeters, STATUS, METHOD } from '../src/util.js';
 
 test('thaiDate แสดงวันแบบไทย พ.ศ. 2 หลัก', () => {
   assert.equal(thaiDate('2026-11-16'), 'จ. 16 พ.ย. 69');
@@ -37,4 +37,12 @@ test('thaiRange ช่วงวันที่แบบสั้น', () => {
   assert.equal(thaiRange('2026-10-28', '2026-11-03'), '28 ต.ค. – 3 พ.ย. 69');
   assert.equal(thaiRange('2026-12-28', '2027-01-08'), '28 ธ.ค. 69 – 8 ม.ค. 70');
   assert.equal(thaiRange('2026-10-26', '2026-10-26'), '26 ต.ค. 69');
+});
+
+test('statusLabel แยกประเภทการลา และมีบทบาทเจ้าหน้าที่บุคลากร', () => {
+  assert.equal(statusLabel({ status: 'leave', leave_type: 'sick' }), 'ลาป่วย');
+  assert.equal(statusLabel({ status: 'leave', leave_type: 'personal' }), 'ลากิจ');
+  assert.equal(statusLabel({ status: 'leave' }), 'ลา');
+  assert.equal(statusLabel({ status: 'official' }), 'ไปราชการ');
+  assert.equal(ROLE.hr, 'เจ้าหน้าที่บุคลากร');
 });

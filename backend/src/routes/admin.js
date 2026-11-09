@@ -16,7 +16,7 @@ const { confirmPassword } = require('../services/confirm');
 const { authenticate, requireReady, requireRole, HttpError } = require('../middleware/auth');
 
 const router = express.Router();
-const ROLES = ['staff', 'dept_head', 'activity', 'executive', 'admin'];
+const ROLES = ['staff', 'dept_head', 'activity', 'hr', 'executive', 'admin'];
 
 router.use(authenticate, requireReady);
 
@@ -295,7 +295,7 @@ router.get('/demo', async (_req, res) => {
 
 router.post('/demo/simulate', async (req, res) => {
   await confirmPassword(req.user.id, req.body?.password);
-  const r = await demo.simulate({ weeks: req.body?.weeks });
+  const r = await demo.simulate({ weeks: req.body?.weeks, staffTypes: req.body?.staffTypes !== false });
   await log(req, 'demo.simulate', '', r);
   res.json({ ...r, status: await demo.status() });
 });
@@ -339,6 +339,38 @@ router.post('/backups/download', async (req, res) => {
     return;
   }
   res.download(p);
+});
+
+// สำรองทั้งระบบเป็นไฟล์เดียว (.tar = ฐานข้อมูล + รูปหลักฐาน/ลายเซ็น + manifest) ใช้กู้คืนได้ที่หน้านี้
+router.post('/backups/full', async (req, res) => {
+  await confirmPassword(req.user.id, req.body?.password);
+  const ts = String(req.body?.ts || '');
+  backups.filePath(`db-${ts}.sql.gz`);
+  await log(req, 'backup.full_download', ts);
+  res.set('Content-Type', 'application/x-tar');
+  res.set('Content-Disposition', `attachment; filename="lineup-full-${ts}.tar"`);
+  await backups.writeFull(ts, res);
+  res.end();
+});
+
+// ---------- กู้คืนระบบ ----------
+router.get('/restore/status', async (_req, res) => {
+  res.json(await backups.restoreStatus());
+});
+
+// อัปโหลดไฟล์สำรอง (สตรีม ไม่ผ่าน JSON) แล้วตรวจว่าใช้กู้คืนได้ — ยังไม่กู้คืน
+router.post('/restore/upload', async (req, res) => {
+  const info = await backups.receiveUpload(req);
+  await log(req, 'restore.upload', info.id, { bytes: info.bytes, uploads: !!info.uploads });
+  res.status(201).json(info);
+});
+
+router.post('/restore', async (req, res) => {
+  await confirmPassword(req.user.id, req.body?.password);
+  if (req.body?.confirm !== 'กู้คืนระบบ') throw new HttpError(400, 'พิมพ์คำว่า "กู้คืนระบบ" เพื่อยืนยัน');
+  const r = await backups.requestRestore(req.body || {}, { byName: req.user.full_name, includeUploads: req.body?.includeUploads !== false });
+  await log(req, 'restore.request', r.label, r);
+  res.status(202).json({ ok: true, ...r });
 });
 
 // ส่งออกข้อมูลทั้งหมดเป็น Excel (.xlsx) สำหรับทำรายงานต่อ — ต้องยืนยันรหัสผ่าน (มีข้อมูลส่วนบุคคล)

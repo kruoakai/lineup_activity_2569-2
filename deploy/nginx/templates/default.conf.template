@@ -33,6 +33,31 @@ server {
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
+    # อัปโหลดไฟล์สำรองเพื่อกู้คืนระบบ (ไฟล์ใหญ่ได้ถึง 1 GB)
+    location = /api/admin/restore/upload {
+        client_max_body_size 1100m;
+        proxy_request_buffering off;
+        proxy_pass http://app:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+
+    # ดาวน์โหลดไฟล์สำรองทั้งระบบ (ไฟล์ใหญ่ ใช้เวลานาน)
+    location ~ ^/api/admin/backups/(full|download)$ {
+        proxy_pass http://app:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+    }
+
     # จำกัดอัตราการเรียก API ต่อ IP (มือถือหลายเครื่องอาจใช้ Wi-Fi/NAT เดียวกัน จึงตั้งไว้ค่อนข้างสูง)
     location /api/ {
         limit_req zone=api burst=200 nodelay;

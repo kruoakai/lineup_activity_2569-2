@@ -4,10 +4,11 @@
 //               + ถ้า can_proxy = 1 เช็กแทนได้เฉพาะคนในแผนกเดียวกัน ภายในช่วงเวลาเช็กชื่อ
 // dept_head   : ดูรายงานแผนกตัวเอง (+ เช็กแทนในแผนกถ้า can_proxy)
 // activity    : เจ้าหน้าที่งานกิจกรรม เช็กแทน/บันทึกสถานะได้ทุกคน รวมถึงหลังปิดระบบ ดูรายงานทั้งหมด แสดง QR
+// hr          : เจ้าหน้าที่บุคลากร บันทึกสถานะลา/ราชการ/นโยบายให้ทุกคน ผู้มาสาย/ไม่ลงเวลากลับ สร้างรายงานสรุปประจำวัน ดูรายงานทั้งหมด
 // executive   : ดูรายงานทั้งหมด
 // admin       : ทุกอย่าง + จัดการผู้ใช้และค่าระบบ
 
-const VIEW_ALL = new Set(['activity', 'executive', 'admin']);
+const VIEW_ALL = new Set(['activity', 'hr', 'executive', 'admin']);
 const MANAGE_ALL = new Set(['activity', 'admin']);
 
 function canViewAll(user) {

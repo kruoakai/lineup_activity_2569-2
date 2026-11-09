@@ -74,10 +74,10 @@ async function upsert({ userId, day, fields, actorId, reason, ip, detail, action
     if (!existing) {
       const res = await q.query(
         `INSERT INTO attendance
-           (user_id, day, status, method, checked_by, checked_at, lat, lng, accuracy_m, distance_m,
+           (user_id, day, status, leave_type, method, checked_by, checked_at, lat, lng, accuracy_m, distance_m,
             in_zone, qr_ok, device_id, note, flagged, flag_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, day, fields.status, fields.method, actorId, now, fields.lat ?? null, fields.lng ?? null,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, day, fields.status, fields.leave_type ?? null, fields.method, actorId, now, fields.lat ?? null, fields.lng ?? null,
           fields.accuracy_m ?? null, fields.distance_m ?? null, fields.in_zone ?? null, fields.qr_ok ? 1 : 0,
           fields.device_id ?? null, fields.note || '', fields.flagged ? 1 : 0,
           fields.flag_reason || ''],
@@ -105,14 +105,14 @@ async function upsert({ userId, day, fields, actorId, reason, ip, detail, action
 const hhmm = (d) => clock.bangkok(new Date(d)).time.slice(0, 5);
 // ข้อความบอกว่าใครเช็กชื่อให้แล้ว เช่น "มาเข้าแถวแล้ว — เช็กแทนโดย ครู ก เวลา 07:41 น."
 function whoText(rec, ownerId) {
-  const staff = rec.method === 'proxy_activity' || rec.method === 'admin';
+  const staff = ['proxy_activity', 'hr', 'admin'].includes(rec.method);
   const by = rec.checked_by === ownerId ? 'เช็กเอง' : `${staff ? 'บันทึก' : 'เช็กแทน'}โดย ${rec.checked_by_name}`;
   return `${STATUS_LABELS[rec.status]}แล้ว — ${by} เวลา ${hhmm(rec.checked_at)} น.`;
 }
 
 async function findRecord(userId, day) {
   const [row] = await db.query(
-    `SELECT a.id, a.day, a.status, a.method, a.checked_at, a.distance_m, a.in_zone, a.qr_ok, a.flagged,
+    `SELECT a.id, a.day, a.status, a.leave_type, a.method, a.checked_at, a.distance_m, a.in_zone, a.qr_ok, a.flagged,
             a.flag_reason, a.note, a.is_demo, cb.full_name AS checked_by_name, a.checked_by,
             (SELECT COUNT(*) FROM attendance_photos p WHERE p.attendance_id = a.id) AS photo_count
        FROM attendance a JOIN users cb ON cb.id = a.checked_by
@@ -379,7 +379,7 @@ async function roster({ day, departmentId, status, search }) {
 
 async function history(userId, limit = 60) {
   return db.query(
-    `SELECT a.day, a.status, a.method, a.checked_at, a.flagged, a.note, cb.full_name AS checked_by_name
+    `SELECT a.day, a.status, a.leave_type, a.method, a.checked_at, a.flagged, a.note, cb.full_name AS checked_by_name
        FROM attendance a JOIN users cb ON cb.id = a.checked_by
       WHERE a.user_id = ? ORDER BY a.day DESC LIMIT ?`,
     [userId, limit],
@@ -397,4 +397,4 @@ async function events(attendanceId) {
 }
 
 module.exports = {
-  recordBatch, addPhotos, photosOf, MAX_PHOTOS, selfCheckIn, recordFor, roster, history, events, findRecord, STATUSES, STATUS_LABELS };
+  recordBatch, addPhotos, photosOf, MAX_PHOTOS, selfCheckIn, recordFor, roster, history, events, findRecord, upsert, STATUSES, STATUS_LABELS };

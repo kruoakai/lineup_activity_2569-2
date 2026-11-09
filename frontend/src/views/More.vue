@@ -51,7 +51,7 @@ import Credits from '../components/Credits.vue';
 
 const router = useRouter();
 const manage = computed(() => MANAGE(auth.user));
-const viewAll = computed(() => ['activity', 'executive', 'admin'].includes(auth.user.role) || pending.value > 0);
+const viewAll = computed(() => ['activity', 'hr', 'executive', 'admin'].includes(auth.user.role) || pending.value > 0);
 const pending = ref(0);
 const avatar = ref(null);
 
@@ -62,8 +62,14 @@ const groups = computed(() => {
     items: [
       { to: '/report-docs', icon: '📝', color: 'amber', label: 'เอกสารเสนอลงนาม', sub: pending.value ? `รอท่านลงนาม ${pending.value} ฉบับ` : 'ดู สร้าง และลงนามเอกสาร', badge: pending.value },
       viewAll.value && { to: '/executive', icon: '📈', color: 'blue', label: 'รายงานผู้บริหาร', sub: 'สรุปภาพรวม 4 รูปแบบ' },
+      ['hr', 'activity', 'executive', 'dept_head', 'admin'].includes(u.role) && { to: '/my-backup', icon: '📦', color: 'teal', label: 'สำรองข้อมูลงานของฉัน', sub: 'ดาวน์โหลด Excel เก็บไว้เอง' },
     ],
   }];
+  if (['hr', 'admin'].includes(u.role)) {
+    out.push({ title: 'งานบุคลากร', items: [
+      { to: '/hr', icon: '🗂', color: 'blue', label: 'งานบุคลากรประจำวัน', sub: 'ลา ราชการ นโยบาย มาสาย สร้างรายงานสรุป' },
+    ] });
+  }
   if ((u.can_proxy || u.peer_check) && !manage.value) {
     out.push({ title: 'เช็กชื่อแทน', items: [{ to: '/roster', icon: '👥', color: 'teal', label: 'เช็กแทนคนในแผนก', sub: u.department_name || 'รายชื่อในแผนก' }] });
   }
@@ -86,7 +92,7 @@ const groups = computed(() => {
         { to: '/admin/settings', icon: '⚙️', color: 'slate', label: 'ตั้งค่าการเช็กชื่อ', sub: 'เวลา พื้นที่ (แผนที่) วิธีเช็กชื่อ' },
         { to: '/admin/report-setup', icon: '🖋', color: 'indigo', label: 'แบบรายงานและผู้ลงนาม', sub: 'ผู้ลงนาม และอีเมล' },
         { to: '/admin/data', icon: '🎲', color: 'amber', label: 'ข้อมูลจำลอง', sub: 'ทดลอง / เริ่มใช้งานจริง' },
-        { to: '/admin/backups', icon: '💾', color: 'teal', label: 'สำรองฐานข้อมูล', sub: 'ดาวน์โหลด .sql / Excel' },
+        { to: '/admin/backups', icon: '💾', color: 'teal', label: 'สำรองและกู้คืนระบบ', sub: 'สำรองทั้งระบบ · กู้คืนเมื่อเซิร์ฟเวอร์มีปัญหา' },
       ],
     });
   }

@@ -110,22 +110,33 @@ function parse(doc) {
   };
 }
 
-// แบ่งหน้าที่: ผู้จัดทำ (งานกิจกรรม / ผู้ดูแลระบบ) ≠ ผู้ลงนาม — ผู้บริหารและผู้ลงนามลงนามและดูสารสนเทศได้อย่างเดียว
+// แบ่งหน้าที่: ผู้จัดทำ (เจ้าหน้าที่บุคลากร / ผู้ดูแลระบบ) ≠ ผู้ลงนาม — ผู้บริหารและผู้ลงนามลงนามและดูสารสนเทศได้อย่างเดียว
 async function canCreate(user) {
-  return ['activity', 'admin'].includes(user.role);
+  return ['hr', 'admin'].includes(user.role);
 }
 
-async function create(user, { from, to, title }) {
+const findDup = async (day) => (await db.query(
+  "SELECT id FROM report_docs WHERE kind = 'hr_daily' AND period_from = ? AND status <> 'returned' LIMIT 1", [day]))[0];
+
+// ตัวอย่างก่อนสร้าง: ตัวเลข + คำเตือน (เช่น ยังไม่กำหนดประเภทบุคลากร) + มีเอกสารของวันนั้นแล้วหรือไม่
+async function preview(user, day) {
   if (!(await canCreate(user))) throw new HttpError(403, 'ไม่มีสิทธิ์สร้างเอกสารเสนอลงนาม');
-  const snapshot = await officialReport({ from, to });
-  if (!snapshot.days.length) throw new HttpError(400, 'ช่วงวันที่ที่เลือกไม่มีวันเข้าแถว');
+  const r = await require('./hr').dailySummary(day);
+  return { ...r, existingId: (await findDup(day))?.id || null };
+}
+
+async function create(user, { day, title }) {
+  if (!(await canCreate(user))) throw new HttpError(403, 'ไม่มีสิทธิ์สร้างเอกสารเสนอลงนาม');
+  const { snapshot } = await require('./hr').dailySummary(day);
+  if (await findDup(day)) throw new HttpError(409, 'มีรายงานของวันนี้แล้ว — เปิดฉบับเดิม หรือให้ผู้ลงนามส่งกลับแก้ไขก่อนสร้างใหม่', 'DUPLICATE');
   const steps = await signerSteps();
-  const t = String(title || '').trim().slice(0, 255) || `${snapshot.title} ${from === to ? 'วันที่' : 'ระหว่างวันที่'} ${require('./thaiDate').range(from, to)}`;
+  steps[steps.length - 1].decision = true; // ผู้อำนวยการ: ☐ ทราบ ☐ มอบ …
+  const t = String(title || '').trim().slice(0, 255) || `${snapshot.title} ${snapshot.dateText}`;
   const json = JSON.stringify(snapshot);
   const hash = crypto.createHash('sha256').update(json).digest('hex');
   const r = await db.query(
-    'INSERT INTO report_docs (title, period_from, period_to, snapshot, snapshot_hash, steps, is_demo, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [t, from, to, json, hash, JSON.stringify(steps), snapshot.demo ? 1 : 0, user.id, clock.now()],
+    "INSERT INTO report_docs (kind, title, period_from, period_to, snapshot, snapshot_hash, steps, is_demo, created_by, created_at) VALUES ('hr_daily', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [t, day, day, json, hash, JSON.stringify(steps), snapshot.demo ? 1 : 0, user.id, clock.now()],
   );
   const doc = { id: r.insertId, title: t };
   notify(steps[0].user_id, doc, 'มีเอกสารรอท่านลงนาม');
@@ -146,7 +157,7 @@ async function get(user, id) {
   if (!(await canView(user, doc))) throw new HttpError(403, 'ไม่มีสิทธิ์ดูเอกสารนี้');
   const sigs = await db.query(
     `SELECT s.id, s.step, s.action, s.signer_id, u.full_name AS signer_name, s.signature_path IS NOT NULL AS has_image,
-            s.comment, s.signed_at
+            s.comment, s.decision, s.signed_at
        FROM report_signatures s JOIN users u ON u.id = s.signer_id WHERE s.doc_id = ? ORDER BY s.id`,
     [doc.id],
   );
@@ -162,6 +173,7 @@ async function get(user, id) {
       active: !!r.active, ready: !!r.active && !r.must_change_password && !!r.consented, has_signature: !!r.has_signature,
     }]));
   }
+  for (const sg of sigs) if (typeof sg.decision === 'string') sg.decision = JSON.parse(sg.decision);
   return { ...doc, signatures: sigs, canSign: !!current && current.user_id === user.id, accounts };
 }
 
@@ -178,7 +190,7 @@ async function syncSigners() {
 
 async function list(user) {
   const rows = await db.query(
-    `SELECT r.id, r.title, r.period_from, r.period_to, r.steps, r.current_step, r.status, r.is_demo, r.created_by,
+    `SELECT r.id, r.kind, r.title, r.period_from, r.period_to, r.steps, r.current_step, r.status, r.is_demo, r.created_by,
             r.created_at, u.full_name AS created_by_name
        FROM report_docs r JOIN users u ON u.id = r.created_by ORDER BY r.id DESC LIMIT 200`,
   );
@@ -201,9 +213,21 @@ async function pendingCount(user) {
   }).length;
 }
 
-async function sign(user, id, { password, comment, signature }, ip) {
+// คำสั่งการของผู้อำนวยการ: ☐ ทราบ ☐ มอบ <ผู้รับมอบ>
+function parseDecision(step, d) {
+  if (!step.decision) return null;
+  const ack = !!d?.ack;
+  const assign = !!d?.assign;
+  const assignTo = String(d?.assignTo || '').trim().slice(0, 150);
+  if (!ack && !assign) throw new HttpError(400, 'เลือก "ทราบ" หรือ "มอบ" อย่างน้อย 1 ข้อ');
+  if (assign && !assignTo) throw new HttpError(400, 'ระบุผู้รับมอบ');
+  return { ack, assign, assignTo: assign ? assignTo : '' };
+}
+
+async function sign(user, id, { password, comment, signature, decision }, ip) {
   const doc = await get(user, id);
   if (!doc.canSign) throw new HttpError(403, 'ยังไม่ถึงลำดับลงนามของท่าน หรือเอกสารไม่อยู่ในสถานะรอลงนาม');
+  const dec = parseDecision(doc.steps[doc.current_step - 1], decision);
   await confirmPassword(user.id, password);
   let sigPath;
   if (signature) {
@@ -215,8 +239,8 @@ async function sign(user, id, { password, comment, signature }, ip) {
     sigPath = await files.copyUpload(u.signature_path, 'report-signatures', `doc-${doc.id}-s${doc.current_step}`);
   }
   await db.query(
-    "INSERT INTO report_signatures (doc_id, step, action, signer_id, signature_path, comment, ip, signed_at) VALUES (?, ?, 'sign', ?, ?, ?, ?, ?)",
-    [doc.id, doc.current_step, user.id, sigPath, String(comment || '').slice(0, 500), ip, clock.now()],
+    "INSERT INTO report_signatures (doc_id, step, action, signer_id, signature_path, comment, decision, ip, signed_at) VALUES (?, ?, 'sign', ?, ?, ?, ?, ?, ?)",
+    [doc.id, doc.current_step, user.id, sigPath, String(comment || '').slice(0, 500), dec ? JSON.stringify(dec) : null, ip, clock.now()],
   );
   if (doc.current_step >= doc.steps.length) {
     await db.query("UPDATE report_docs SET status = 'approved' WHERE id = ?", [doc.id]);
@@ -250,4 +274,4 @@ async function signatureFile(user, id, sigId) {
   return abs;
 }
 
-module.exports = { officialReport, create, get, list, pendingCount, sign, returnDoc, signatureFile, canCreate, isSigner, syncSigners };
+module.exports = { officialReport, preview, create, get, list, pendingCount, sign, returnDoc, signatureFile, canCreate, isSigner, syncSigners };

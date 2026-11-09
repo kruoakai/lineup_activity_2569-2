@@ -16,7 +16,7 @@
           <span class="small muted">{{ METHOD[it.method] }} · {{ thaiTime(it.checked_at) }} น.
             <template v-if="it.checked_by_name !== auth.user.full_name"> · โดย {{ it.checked_by_name }}</template></span>
         </div>
-        <span class="badge" :class="STATUS[it.status].cls">{{ STATUS[it.status].label }}</span>
+        <span class="badge" :class="STATUS[it.status].cls">{{ statusLabel(it) }}</span>
       </li>
       <li v-if="!items.length && !loading" class="muted">ยังไม่มีประวัติ</li>
     </ul>
@@ -26,7 +26,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { api, auth } from '../api';
-import { STATUS, METHOD, thaiDate, thaiTime } from '../util';
+import { STATUS, METHOD, statusLabel, thaiDate, thaiTime } from '../util';
 
 const items = ref([]);
 const loading = ref(true);

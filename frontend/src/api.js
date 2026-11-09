@@ -102,3 +102,23 @@ export async function imageUrl(path) {
   const res = await api(path, { raw: true });
   return URL.createObjectURL(await res.blob());
 }
+
+// อัปโหลดไฟล์ใหญ่แบบสตรีม (ไม่แปลงเป็น base64) พร้อมความคืบหน้า 0–100
+export async function uploadFile(path, file, onProgress) {
+  await refresh().catch(() => {});
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', path);
+    xhr.setRequestHeader('Authorization', `Bearer ${auth.token}`);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let body = {};
+      try { body = JSON.parse(xhr.responseText); } catch { /* ไม่ใช่ JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.error || (xhr.status === 413 ? 'ไฟล์ใหญ่เกินที่เซิร์ฟเวอร์รับได้' : `อัปโหลดไม่สำเร็จ (${xhr.status})`)));
+    };
+    xhr.onerror = () => reject(new Error('การเชื่อมต่อขาดระหว่างอัปโหลด'));
+    xhr.send(file);
+  });
+}
