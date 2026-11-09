@@ -31,7 +31,7 @@
     <div v-if="returned" class="alert bad small no-print" style="margin-top:10px">ส่งกลับแก้ไขโดย {{ returned.signer_name }}: {{ returned.comment }}</div>
 
     <!-- แบบสรุปการปฏิบัติงานประจำวัน (งานบุคลากร) -->
-    <article v-if="doc.kind === 'hr_daily'" class="paper" :class="{ wet }">
+    <article v-if="doc.kind === 'hr_daily'" class="paper doc" :class="{ wet }">
       <HrDailyPaper :snap="snap" :steps="doc.steps" :signatures="doc.signatures" :sig-urls="sigUrls" :wet="wet" />
       <p class="meta">เลขอ้างอิงเอกสาร {{ doc.id }}-{{ doc.snapshot_hash.slice(0, 10) }} · สร้างโดย {{ doc.created_by_name }} · ออกจากระบบเช็กชื่อเข้าแถว วิทยาลัยเทคนิคชัยภูมิ
         <br />{{ wet ? 'ฉบับสำหรับลงนามด้วยมือ' : `สถานะ: ${statusLine}` }} · พิมพ์เมื่อ {{ dt(new Date().toISOString()) }}</p>
@@ -261,9 +261,16 @@ onMounted(() => {
 .decision { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; gap: 6px; }
 .decision legend { padding: 0 6px; color: var(--muted); font-size: .85rem; }
 .meta { margin-top: 18px; font-size: 11px; color: #666; text-align: center; }
+/* หนังสือราชการ: กระดาษขาวไม่มีกรอบ/เงา ระยะขอบแบบ A4 (บน 2.5 ซ้าย 3 ขวา 2 ล่าง 2 ซม.) */
+.paper.doc { border-radius: 0; box-shadow: none; border: 0; padding: 2.5cm 2cm 2cm 3cm; color: #000; }
+@media (max-width: 760px) { .paper.doc { padding: 16px 12px; } .paper.doc > :first-child { zoom: .8; } }
+/* มือถือ: ย่อทั้งหน้าให้เห็นเต็มแผ่นเหมือนดู PDF ไม่ต้องเลื่อนซ้ายขวา */
+@media (max-width: 600px) { .paper.doc > :first-child { zoom: .6; } }
+@media print { .paper.doc > :first-child { zoom: 1; } }
 @media print {
   .paper { box-shadow: none; padding: 0; margin: 0; font-size: 13px; overflow: visible; }
+  .paper.doc { padding: 0; }
   .form, .signs { min-width: 0; }
-  @page { size: A4 portrait; margin: 14mm 12mm; }
+  @page { size: A4 portrait; margin: 25mm 20mm 20mm 30mm; }
 }
 </style>
