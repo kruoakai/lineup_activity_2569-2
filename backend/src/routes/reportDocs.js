@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/pending-count', async (req, res) => {
-  res.json({ count: await official.pendingCount(req.user) });
+  res.json({ count: await official.pendingCount(req.user), returned: await official.returnedCount(req.user) });
 });
 
 router.get('/preview', async (req, res) => {

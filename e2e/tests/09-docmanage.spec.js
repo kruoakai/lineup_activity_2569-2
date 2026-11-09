@@ -21,6 +21,14 @@ test('ไปราชการต้องกรอกรายละเอี�
   await bar.getByRole('button', { name: /^บันทึก "ไปราชการ"/ }).click();
   await expect(page.locator('.alert.ok')).toContainText('ไปราชการ');
 
+  // เช็กชื่อแทน (มือถือเสีย)
+  await page.locator('.plist li', { hasText: 'ครูทดสอบ สาม' }).click();
+  await page.locator('.selbar').getByRole('button', { name: /ตั้งสถานะ/ }).click();
+  await bar.getByRole('button', { name: 'มา (เช็กชื่อแทน)' }).click();
+  await bar.locator('input').last().fill('มือถือเสีย');
+  await bar.getByRole('button', { name: /^บันทึก "มา/ }).click();
+  await expect(page.locator('.plist li', { hasText: 'ครูทดสอบ สาม' })).toContainText('มา');
+
   await page.getByRole('button', { name: 'สร้างและส่งลงนาม' }).click();
   await expect(page).toHaveURL(/\/report-docs\/\d+/);
   await page.getByRole('link', { name: '‹ รายการ' }).click();

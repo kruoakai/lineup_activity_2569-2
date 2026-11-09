@@ -81,6 +81,10 @@
     <div v-if="error" class="alert bad">{{ error }}</div>
     <div v-if="message" class="alert ok">{{ message }}</div>
 
+    <router-link v-if="sentBack > 0" to="/report-docs" class="card row sign-banner back">
+      <span class="ico" aria-hidden="true">↩</span>
+      <span class="grow"><b>มีเอกสารถูกส่งกลับแก้ไข {{ sentBack }} ฉบับ</b><br /><span class="small muted">แตะเพื่อเปิด แก้ไข แล้วส่งลงนามใหม่</span></span>
+    </router-link>
     <router-link v-if="toSign > 0" to="/report-docs" class="card row sign-banner">
       <span style="font-size:1.6rem">📝</span>
       <span class="grow"><b>มีเอกสารรอท่านลงนาม {{ toSign }} ฉบับ</b><br /><span class="small muted">แตะเพื่อเปิดเอกสารและลงนาม</span></span>
@@ -127,6 +131,7 @@ const extraPhotos = ref([]);
 const scanning = ref(false);
 const showPhotos = ref(false);
 const toSign = ref(0);
+const sentBack = ref(0);
 const pos = ref(null);
 const qrToken = ref(null);
 const offset = ref(0);
@@ -254,7 +259,7 @@ onMounted(async () => {
     if (route.query.qr) router.replace({ path: '/' });
   }
   await load();
-  api('/api/report-docs/pending-count').then((r) => { toSign.value = r.count; }).catch(() => {});
+  api('/api/report-docs/pending-count').then((r) => { toSign.value = r.count; sentBack.value = r.returned || 0; }).catch(() => {});
   tick();
   timer = setInterval(() => {
     tick();
@@ -271,6 +276,7 @@ onUnmounted(() => clearInterval(timer));
 
 <style scoped>
 .sign-banner { text-decoration: none; color: inherit; border-left: 4px solid var(--brand-2); align-items: center; gap: 12px; }
+.sign-banner.back { border-left-color: var(--bad); }
 .hero { text-align: center; }
 .clock { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1; }
 .phase { margin: 6px 0 0; font-weight: 600; }

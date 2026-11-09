@@ -53,6 +53,7 @@ const router = useRouter();
 const manage = computed(() => MANAGE(auth.user));
 const viewAll = computed(() => ['activity', 'hr', 'executive', 'admin'].includes(auth.user.role) || pending.value > 0);
 const pending = ref(0);
+const returned = ref(0);
 const avatar = ref(null);
 
 const groups = computed(() => {
@@ -60,7 +61,7 @@ const groups = computed(() => {
   const out = [{
     title: 'เอกสารและรายงาน',
     items: [
-      { to: '/report-docs', icon: '📝', color: 'amber', label: 'เอกสารเสนอลงนาม', sub: pending.value ? `รอท่านลงนาม ${pending.value} ฉบับ` : 'ดู สร้าง และลงนามเอกสาร', badge: pending.value },
+      { to: '/report-docs', icon: '📝', color: 'amber', label: 'เอกสารเสนอลงนาม', sub: [pending.value && `รอท่านลงนาม ${pending.value} ฉบับ`, returned.value && `ถูกส่งกลับแก้ไข ${returned.value} ฉบับ`].filter(Boolean).join(' · ') || 'ดู สร้าง และลงนามเอกสาร', badge: pending.value + returned.value },
       viewAll.value && { to: '/executive', icon: '📈', color: 'blue', label: 'รายงานผู้บริหาร', sub: 'สรุปภาพรวม 4 รูปแบบ' },
       ['hr', 'activity', 'executive', 'dept_head', 'admin'].includes(u.role) && { to: '/my-backup', icon: '📦', color: 'teal', label: 'สำรองข้อมูลงานของฉัน', sub: 'ดาวน์โหลด Excel เก็บไว้เอง' },
     ],
@@ -105,7 +106,7 @@ async function doLogout() {
 }
 
 onMounted(async () => {
-  try { pending.value = (await api('/api/report-docs/pending-count')).count; } catch { /* ignore */ }
+  try { const r = await api('/api/report-docs/pending-count'); pending.value = r.count; returned.value = r.returned || 0; } catch { /* ignore */ }
   if (auth.user.has_avatar) avatar.value = await imageUrl(`/api/profile/avatar/${auth.user.id}`).catch(() => null);
 });
 </script>

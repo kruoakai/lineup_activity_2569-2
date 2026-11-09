@@ -72,6 +72,6 @@ const canReport = computed(() => auth.user && VIEW_REPORT(auth.user));
 const pending = ref(0);
 watch(() => [auth.user?.id, route.path], async () => {
   if (!auth.user || auth.user.must_change_password || !auth.user.consented) { pending.value = 0; return; }
-  try { pending.value = (await api('/api/report-docs/pending-count')).count; } catch { pending.value = 0; }
+  try { const r = await api('/api/report-docs/pending-count'); pending.value = r.count + (r.returned || 0); } catch { pending.value = 0; }
 }, { immediate: true });
 </script>

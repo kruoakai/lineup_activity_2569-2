@@ -266,7 +266,12 @@ async function list(user) {
     // สิทธิ์จัดการแบบย่อสำหรับหน้ารายการ (ลายเซ็นรอบปัจจุบันตรวจจาก current_step / สถานะ)
     const rights = manageRights(user, doc, r.status === 'pending' && r.current_step > 1 ? [{ action: 'sign' }] : []);
     if (r.status === 'approved') rights.canEdit = false;
-    out.push({ ...doc, waitingFor: current?.user_name || null, myTurn: !!current && current.user_id === user.id, ...rights });
+    const returnedBy = r.status === 'returned'
+      ? (await db.query(
+        "SELECT u.full_name AS name, s.comment FROM report_signatures s JOIN users u ON u.id = s.signer_id WHERE s.doc_id = ? AND s.action = 'return' ORDER BY s.id DESC LIMIT 1",
+        [r.id]))[0] || null
+      : null;
+    out.push({ ...doc, waitingFor: current?.user_name || null, myTurn: !!current && current.user_id === user.id, returnedBy, ...rights });
   }
   return out;
 }
@@ -277,6 +282,15 @@ async function pendingCount(user) {
     const steps = typeof r.steps === 'string' ? JSON.parse(r.steps) : r.steps;
     return steps[r.current_step - 1]?.user_id === user.id;
   }).length;
+}
+
+// เอกสารที่ถูกส่งกลับแก้ไข รอผู้จัดทำ (หรือผู้ดูแลระบบ) แก้แล้วส่งใหม่
+async function returnedCount(user) {
+  if (!['hr', 'admin'].includes(user.role)) return 0;
+  const [r] = user.role === 'admin'
+    ? await db.query("SELECT COUNT(*) AS n FROM report_docs WHERE status = 'returned'")
+    : await db.query("SELECT COUNT(*) AS n FROM report_docs WHERE status = 'returned' AND created_by = ?", [user.id]);
+  return Number(r.n);
 }
 
 // คำสั่งการของผู้อำนวยการ: ☐ ทราบ ☐ มอบ <ผู้รับมอบ>
@@ -340,4 +354,4 @@ async function signatureFile(user, id, sigId) {
   return abs;
 }
 
-module.exports = { officialReport, preview, create, update, remove, get, list, pendingCount, sign, returnDoc, signatureFile, canCreate, isSigner, syncSigners };
+module.exports = { officialReport, preview, create, update, remove, get, list, pendingCount, returnedCount, sign, returnDoc, signatureFile, canCreate, isSigner, syncSigners };

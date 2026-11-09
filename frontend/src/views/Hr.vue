@@ -1,6 +1,7 @@
 <template>
   <div>
     <h1>งานบุคลากรประจำวัน</h1>
+    <p class="small muted tip">📱 ครูมือถือเสีย / เช็กชื่อเองไม่ได้: แท็บรายชื่อ → แตะเลือกชื่อ → <b>ตั้งสถานะ</b> → <b>มา (เช็กชื่อแทน)</b> ระบุเหตุผลในหมายเหตุ เช่น “มือถือเสีย”</p>
 
     <section class="card daybar">
       <button type="button" class="btn sm" aria-label="วันก่อนหน้า" @click="shift(-1)">‹</button>
@@ -123,7 +124,7 @@
           <span v-if="needNote">รายละเอียด<b class="req">* จำเป็นต้องกรอก</b></span>
           <span v-else>หมายเหตุ (ไม่บังคับ)</span>
           <input ref="noteEl" v-model.trim="note" maxlength="500" :required="needNote" :aria-invalid="needNote && !note"
-            :placeholder="needNote ? (setTo === 'official' ? 'เช่น ประชุมที่ สอศ. ตามคำสั่งที่ 123/2569' : 'เช่น ออกหน่วย Fix It Center ตามนโยบายวิทยาลัย') : ''" />
+            :placeholder="needNote ? (setTo === 'official' ? 'เช่น ประชุมที่ สอศ. ตามคำสั่งที่ 123/2569' : 'เช่น ออกหน่วย Fix It Center ตามนโยบายวิทยาลัย') : setTo === 'present' ? 'เช่น มือถือเสีย / ลืมเช็กชื่อ (มาปฏิบัติงานจริง)' : ''" />
           <small v-if="needNote && !note" class="need-msg">⚠ “{{ setLabel }}” ต้องระบุสถานที่ / เรื่อง หรือเลขที่คำสั่ง ก่อนจึงบันทึกได้ — ข้อความนี้จะแสดงในรายงานเสนอผู้บริหาร</small>
         </label>
         <button class="btn primary block" :disabled="busy || !setTo || (needNote && !note)" @click="saveStatus">
@@ -148,7 +149,7 @@ const SETS = [
   { k: 'leave:sick', label: 'ลาป่วย', cls: 'muted' },
   { k: 'leave:personal', label: 'ลากิจ', cls: 'muted' },
   { k: 'leave:other', label: 'ลาอื่น ๆ', cls: 'muted' },
-  { k: 'present', label: 'มา', cls: 'ok' },
+  { k: 'present', label: 'มา (เช็กชื่อแทน)', cls: 'ok' },
   { k: 'clear', label: 'ล้างสถานะ', cls: 'bad' },
 ];
 
@@ -324,6 +325,7 @@ onMounted(async () => {
 .plist input[type=checkbox] { flex: none; }
 .pn { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
 .pn .note { color: var(--info); }
+.tip { margin: -6px 4px 12px; line-height: 1.5; }
 .field.need input { border: 2px solid var(--warn); background: var(--warn-bg, #fff8e1); }
 .field.need input:focus { outline: 3px solid rgba(237, 108, 2, .25); }
 .field.done input { border-color: var(--ok); }

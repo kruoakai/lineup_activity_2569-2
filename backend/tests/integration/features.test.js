@@ -226,6 +226,12 @@ describe('แบบรายงานและลำดับลงนาม', (
     r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ title: 'อีกชื่อ' });
     expect(r.status).toBe(403);
     await api(tok.S2).post(`/api/report-docs/${d.id}/return`).send({ password: h.PASSWORD, comment: 'แก้ตัวเลข' }).expect(200);
+    // ผู้จัดทำเห็นเอกสารที่ถูกส่งกลับ (นับบนเมนู + เหตุผลในรายการ)
+    expect((await api(tok.HR1).get('/api/report-docs/pending-count')).body.returned).toBeGreaterThanOrEqual(1);
+    expect((await api(tok.S1).get('/api/report-docs/pending-count')).body.returned).toBe(0);
+    const row = (await api(tok.HR1).get('/api/report-docs')).body.items.find((x) => x.id === d.id);
+    expect(row.returnedBy).toEqual({ name: expect.any(String), comment: 'แก้ตัวเลข' });
+    expect(row.canEdit).toBe(true);
     // ดึงข้อมูลใหม่ → รอลงนามลำดับ 1 ใหม่ ลายเซ็นรอบก่อนเก็บเป็นประวัติ
     r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ refresh: true });
     expect(r.status).toBe(200);

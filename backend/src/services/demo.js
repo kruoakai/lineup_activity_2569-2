@@ -66,7 +66,10 @@ async function simulate({ weeks = 4, staffTypes = true } = {}) {
   if (!users.length || !days.length) return { inserted: 0, days: days.length, users: users.length, from, to };
   const managers = (await db.query("SELECT id FROM users WHERE active = 1 AND role IN ('activity','admin')")).map((r) => r.id);
   // สถานะลา/ราชการ/นโยบาย บันทึกโดยเจ้าหน้าที่บุคลากร (ถ้ามี)
-  const hrStaff = (await db.query("SELECT id FROM users WHERE active = 1 AND role IN ('hr','admin') ORDER BY role = 'admin'")).map((r) => r.id);
+  // เจ้าหน้าที่บุคลากรเป็นผู้บันทึก (ถ้าไม่มี ใช้ผู้ดูแลระบบ)
+  const hrRows = await db.query("SELECT id, role FROM users WHERE active = 1 AND role IN ('hr','admin') ORDER BY role = 'admin', id");
+  const hrOnly = hrRows.filter((r) => r.role === 'hr').map((r) => r.id);
+  const hrStaff = hrOnly.length ? hrOnly : hrRows.map((r) => r.id);
   const typed = staffTypes ? await demoStaffTypes() : 0;
   const existing = new Set((await db.query('SELECT user_id, day FROM attendance WHERE day BETWEEN ? AND ?', [from, to]))
     .map((r) => `${r.user_id}|${r.day}`));
@@ -90,7 +93,7 @@ async function simulate({ weeks = 4, staffTypes = true } = {}) {
       else st = weighted([['absent', 50], ['official', 25], ['policy', 12], ['leave', 13]]);
       if (st === 'absent') continue; // ขาด = ไม่มีบันทึก (ระบบนับให้เอง)
       let method = 'hr';
-      let by = hrStaff.length ? pick(hrStaff.slice(0, 2)) : managers.length ? pick(managers) : u.id;
+      let by = hrStaff.length ? pick(hrStaff) : managers.length ? pick(managers) : u.id;
       let leaveType = null;
       if (st === 'leave') leaveType = weighted([['sick', 55], ['personal', 35], ['other', 10]]);
       let distance = null;
