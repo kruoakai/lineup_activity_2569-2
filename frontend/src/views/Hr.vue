@@ -1,6 +1,15 @@
 <template>
   <div>
     <h1>งานบุคลากรประจำวัน</h1>
+    <div v-if="fixDoc" class="alert warn fixbar">
+      <b>✏️ กำลังแก้ไขเอกสารเลขที่ {{ fixDoc.id }}</b>{{ fixDoc.status === 'returned' ? ' (ถูกส่งกลับแก้ไข)' : '' }}
+      <span v-if="fixReturn" class="small"><br />เหตุผล: “{{ fixReturn }}”</span>
+      <span class="small"><br />แก้สถานะ / มาสาย / ประเภทบุคลากร ด้านล่าง (เปลี่ยนวันที่ได้) แล้วกดปุ่มนี้หรือปุ่มท้ายหน้า</span>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap">
+        <router-link class="btn sm" :to="`/report-docs/${fixDoc.id}`">‹ กลับไปเอกสาร</router-link>
+        <button type="button" class="btn sm primary" :disabled="busy" @click="resubmit">💾 บันทึกการแก้ไขและส่งลงนามใหม่</button>
+      </div>
+    </div>
     <p class="small muted tip">📱 ครูมือถือเสีย / เช็กชื่อเองไม่ได้: แท็บรายชื่อ → แตะเลือกชื่อ → <b>ตั้งสถานะ</b> → <b>มา (เช็กชื่อแทน)</b> ระบุเหตุผลในหมายเหตุ เช่น “มือถือเสีย”</p>
 
     <section class="card daybar">
@@ -94,7 +103,11 @@
         </div>
         <div class="row" style="flex-wrap:wrap">
           <button class="btn grow" :disabled="busy" @click="checkPreview">ตรวจตัวเลขก่อนสร้าง</button>
-          <router-link v-if="preview?.existingId" class="btn grow" :to="`/report-docs/${preview.existingId}`">เปิดรายงานของวันนี้ ›</router-link>
+          <template v-if="fixDoc">
+            <router-link class="btn grow" :to="`/report-docs/${fixDoc.id}`">‹ กลับไปเอกสาร</router-link>
+            <button class="btn primary grow" :disabled="busy" @click="resubmit">💾 บันทึกการแก้ไขและส่งลงนามใหม่</button>
+          </template>
+          <router-link v-else-if="preview?.existingId" class="btn grow" :to="`/report-docs/${preview.existingId}`">เปิดรายงานของวันนี้ ›</router-link>
           <button v-else class="btn primary grow" :disabled="busy" @click="createDoc">สร้างและส่งลงนาม</button>
         </div>
       </section>
@@ -136,11 +149,18 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api } from '../api';
 import { STATUS, statusLabel, thaiDate, serverToday, addDays } from '../util';
 
 const router = useRouter();
+const route = useRoute();
+// เปิดจากเอกสารที่ต้องแก้ไข (/hr?day=...&doc=...)
+const fixDoc = ref(null);
+const fixReturn = computed(() => {
+  const r = fixDoc.value?.status === 'returned' && [...fixDoc.value.signatures].reverse().find((s) => s.action === 'return');
+  return r ? `${r.comment} — ${r.signer_name}` : '';
+});
 const TABS = [{ k: 'status', label: 'ลา / ราชการ / นโยบาย' }, { k: 'marks', label: 'มาสาย / ไม่ลงเวลากลับ' }, { k: 'types', label: 'ประเภทบุคลากร' }];
 const FILTERS = [{ k: 'all', label: 'ทั้งหมด' }, { k: 'set', label: 'มีสถานะแล้ว' }, { k: 'teach', label: 'ข้าราชการ/พนักงานราชการ' }, { k: 'temp', label: 'ลูกจ้างชั่วคราว' }];
 const SETS = [
@@ -294,9 +314,26 @@ watch(tab, () => { q.value = ''; });
 const noteEl = ref(null);
 watch(setTo, (v) => { if (['official', 'policy'].includes(v) && !note.value) setTimeout(() => noteEl.value?.focus(), 50); });
 
+async function resubmit() {
+  if (!window.confirm(`ส่งเอกสารเลขที่ ${fixDoc.value.id} ลงนามใหม่ด้วยข้อมูลของวันที่ ${thaiDate(day.value)}?\nเริ่มลงนามตั้งแต่ลำดับที่ 1`)) return;
+  busy.value = true;
+  error.value = '';
+  try {
+    const body = { refresh: true, ...(day.value !== fixDoc.value.period_from ? { day: day.value } : {}) };
+    await api(`/api/report-docs/${fixDoc.value.id}`, { method: 'PATCH', body });
+    router.push(`/report-docs/${fixDoc.value.id}`);
+  } catch (e) { error.value = e.message; } finally { busy.value = false; }
+}
+
 onMounted(async () => {
   today.value = await serverToday();
-  day.value = today.value;
+  day.value = /^\d{4}-\d{2}-\d{2}$/.test(String(route.query.day || '')) && route.query.day <= today.value ? String(route.query.day) : today.value;
+  if (route.query.doc) {
+    try {
+      const d = await api(`/api/report-docs/${route.query.doc}`);
+      if (d.canEdit && d.kind === 'hr_daily') fixDoc.value = d;
+    } catch { /* ไม่มีสิทธิ์หรือไม่พบ — ใช้หน้าปกติ */ }
+  }
   meta.value = await api('/api/hr/meta').catch(() => ({ staffTypes: [] }));
   await load();
 });
@@ -326,6 +363,7 @@ onMounted(async () => {
 .pn { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
 .pn .note { color: var(--info); }
 .tip { margin: -6px 4px 12px; line-height: 1.5; }
+.fixbar { line-height: 1.5; border-left: 4px solid var(--warn); }
 .field.need input { border: 2px solid var(--warn); background: var(--warn-bg, #fff8e1); }
 .field.need input:focus { outline: 3px solid rgba(237, 108, 2, .25); }
 .field.done input { border-color: var(--ok); }

@@ -201,31 +201,40 @@ function manageRights(user, doc, sigs) {
   };
 }
 
-async function update(user, id, { title, refresh }) {
+async function update(user, id, { title, refresh, day }) {
   const doc = await get(user, id);
   if (!doc.canEdit) throw new HttpError(403, 'แก้ไขได้เฉพาะเจ้าหน้าที่บุคลากร / ผู้ดูแลระบบ ก่อนมีผู้ลงนาม หรือเมื่อถูกส่งกลับแก้ไข');
-  const t = title === undefined ? doc.title : String(title || '').trim().slice(0, 255);
-  if (!t) throw new HttpError(400, 'กรุณาระบุชื่อเอกสาร');
+  // เปลี่ยนวันที่ของรายงาน = คำนวณใหม่ทั้งฉบับ
+  const newDay = day && day !== doc.period_from ? String(day) : null;
+  if (newDay && !/^\d{4}-\d{2}-\d{2}$/.test(newDay)) throw new HttpError(400, 'รูปแบบวันที่ไม่ถูกต้อง');
+  if (newDay) refresh = true;
+  const autoTitle = (snap) => `${snap.title} ${snap.dateText}`;
+  // ชื่อที่ระบบตั้งให้ (ไม่ได้แก้เอง) เปลี่ยนตามวันที่ใหม่
+  const wasAuto = doc.kind === 'hr_daily' && doc.title === autoTitle(doc.snapshot);
+  let t = title === undefined ? doc.title : String(title || '').trim().slice(0, 255);
+  if (!t && !newDay) throw new HttpError(400, 'กรุณาระบุชื่อเอกสาร');
   if (!refresh) {
     await db.query('UPDATE report_docs SET title = ? WHERE id = ?', [t, doc.id]);
     return get(user, doc.id);
   }
   if (doc.kind !== 'hr_daily') throw new HttpError(400, 'เอกสารแบบเดิมดึงข้อมูลใหม่ไม่ได้ — ลบแล้วสร้างใหม่');
+  const target = newDay || doc.period_from;
   const dup = (await db.query(
-    "SELECT id FROM report_docs WHERE kind = 'hr_daily' AND period_from = ? AND status <> 'returned' AND id <> ? LIMIT 1", [doc.period_from, doc.id]))[0];
-  if (dup) throw new HttpError(409, 'มีรายงานของวันนี้อีกฉบับอยู่แล้ว', 'DUPLICATE');
-  const { snapshot } = await require('./hr').dailySummary(doc.period_from);
+    "SELECT id FROM report_docs WHERE kind = 'hr_daily' AND period_from = ? AND status <> 'returned' AND id <> ? LIMIT 1", [target, doc.id]))[0];
+  if (dup) throw new HttpError(409, `มีรายงานของวันที่เลือกอยู่แล้ว (เอกสารเลขที่ ${dup.id})`, 'DUPLICATE');
+  const { snapshot } = await require('./hr').dailySummary(target);
+  if (!t || (newDay && wasAuto && (title === undefined || title === doc.title))) t = autoTitle(snapshot);
   const steps = await signerSteps();
   steps[steps.length - 1].decision = true;
   const json = JSON.stringify(snapshot);
   const hash = crypto.createHash('sha256').update(json).digest('hex');
   await db.query(
-    "UPDATE report_docs SET title = ?, snapshot = ?, snapshot_hash = ?, steps = ?, is_demo = ?, status = 'pending', current_step = 1 WHERE id = ?",
-    [t, json, hash, JSON.stringify(steps), snapshot.demo ? 1 : 0, doc.id],
+    "UPDATE report_docs SET title = ?, period_from = ?, period_to = ?, snapshot = ?, snapshot_hash = ?, steps = ?, is_demo = ?, status = 'pending', current_step = 1 WHERE id = ?",
+    [t, target, target, json, hash, JSON.stringify(steps), snapshot.demo ? 1 : 0, doc.id],
   );
   await db.query(
     "INSERT INTO report_signatures (doc_id, step, action, signer_id, comment, signed_at) VALUES (?, 0, 'revise', ?, ?, ?)",
-    [doc.id, user.id, 'ดึงข้อมูลล่าสุดและส่งลงนามใหม่', clock.now()],
+    [doc.id, user.id, newDay ? `เปลี่ยนเป็นวันที่ ${target} ดึงข้อมูลใหม่และส่งลงนามใหม่` : 'ดึงข้อมูลล่าสุดและส่งลงนามใหม่', clock.now()],
   );
   notify(steps[0].user_id, { id: doc.id, title: t }, 'มีเอกสารรอท่านลงนาม (ฉบับแก้ไข)');
   return get(user, doc.id);

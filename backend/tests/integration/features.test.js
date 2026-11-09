@@ -243,6 +243,17 @@ describe('แบบรายงานและลำดับลงนาม', (
     expect(r.body.current_step).toBe(1);
     expect(r.body.signatures.map((s) => s.action)).toEqual(['sign', 'return', 'revise']);
     expect(r.body.canEdit).toBe(true);
+    // เปลี่ยนวันที่: วันที่มีรายงานแล้วไม่ได้ / วันอื่นคำนวณใหม่ ชื่อที่ตั้งเองคงไว้
+    r = await api(tok.HR2).patch(`/api/report-docs/${d.id}`).send({ day: '2026-11-23' });
+    expect(r.status).toBe(409);
+    r = await api(tok.HR2).patch(`/api/report-docs/${d.id}`).send({ day: '2026-11-19' });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ period_from: '2026-11-19', period_to: '2026-11-19', title: 'ชื่อใหม่', status: 'pending', current_step: 1 });
+    expect(r.body.snapshot.dateText).toContain('19 พฤศจิกายน');
+    expect(r.body.signatures.at(-1)).toMatchObject({ action: 'revise' });
+    // ล้างชื่อ + เปลี่ยนวัน → ใช้ชื่ออัตโนมัติของวันใหม่
+    r = await api(tok.HR1).patch(`/api/report-docs/${d.id}`).send({ day: '2026-11-18', title: '' });
+    expect(r.body.title).toContain('18 พฤศจิกายน');
     // ลบ: ต้องยืนยันรหัสผ่าน
     await api(tok.HR1).delete(`/api/report-docs/${d.id}`).send({ password: 'bad' }).expect(403);
     await api(tok.HR1).delete(`/api/report-docs/${d.id}`).send({ password: h.PASSWORD }).expect(200);

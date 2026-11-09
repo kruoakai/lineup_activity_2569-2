@@ -28,7 +28,10 @@
     <div v-if="error" class="alert bad no-print" style="margin-top:10px">{{ error }}</div>
     <div v-if="msg" class="alert ok no-print" style="margin-top:10px">{{ msg }}</div>
     <div v-if="doc.is_demo" class="alert warn small no-print" style="margin-top:10px">เอกสารนี้มีข้อมูลจำลอง ใช้สำหรับฝึกใช้งานเท่านั้น</div>
-    <div v-if="returned" class="alert bad small no-print" style="margin-top:10px">ส่งกลับแก้ไขโดย {{ returned.signer_name }}: {{ returned.comment }}</div>
+    <div v-if="returned" class="alert bad small no-print back" style="margin-top:10px">
+      <span class="grow">↩ ส่งกลับแก้ไขโดย {{ returned.signer_name }}: “{{ returned.comment }}”</span>
+      <button v-if="doc.canEdit" type="button" class="btn sm danger" @click="goManage">✏️ แก้ไขเอกสาร ↓</button>
+    </div>
 
     <!-- แบบสรุปการปฏิบัติงานประจำวัน (งานบุคลากร) -->
     <article v-if="doc.kind === 'hr_daily'" class="paper doc" :class="{ wet }">
@@ -82,14 +85,19 @@
     <section v-if="doc.canEdit || doc.canDelete" id="manage" class="card stack no-print manage">
       <h3>จัดการเอกสาร</h3>
       <template v-if="doc.canEdit">
-        <label class="field"><span>ชื่อเอกสาร</span><input v-model.trim="editTitle" maxlength="255" /></label>
-        <div class="row" style="flex-wrap:wrap">
-          <button class="btn" :disabled="busy || !editTitle || editTitle === doc.title" @click="saveTitle">💾 บันทึกชื่อเอกสาร</button>
-          <button v-if="doc.kind === 'hr_daily'" class="btn primary grow" :disabled="busy" @click="refreshDoc">
-            🔄 ดึงข้อมูลล่าสุด{{ doc.status === 'returned' ? 'แล้วส่งลงนามใหม่' : '' }}</button>
+        <p v-if="doc.status === 'returned'" class="small" style="margin:0">แก้ได้ทุกอย่างเหมือนตอนสร้าง: <b>① ข้อมูลในรายงาน</b> (ลา ราชการ นโยบาย มาสาย ไม่ลงเวลากลับ ประเภทบุคลากร)
+          <b>② วันที่</b> <b>③ ชื่อเอกสาร</b> แล้วกดส่งลงนามใหม่ ระบบจะเริ่มลงนามตั้งแต่ลำดับที่ 1</p>
+        <router-link v-if="doc.kind === 'hr_daily'" class="btn block step1" :to="`/hr?day=${editDay}&doc=${doc.id}`">
+          ① ✏️ แก้ข้อมูลในรายงาน (ลา / ราชการ / มาสาย / ประเภทบุคลากร) ›</router-link>
+        <div class="row" style="flex-wrap:wrap;align-items:flex-end">
+          <label v-if="doc.kind === 'hr_daily'" class="field"><span>② ประจำวันที่</span><input v-model="editDay" type="date" /></label>
+          <label class="field grow"><span>③ ชื่อเอกสาร</span><input v-model.trim="editTitle" maxlength="255" /></label>
         </div>
-        <p class="small muted" style="margin:0">แก้สถานะลา / ราชการ / มาสาย ที่หน้า
-          <router-link to="/hr">งานบุคลากรประจำวัน</router-link> ก่อน แล้วกด “ดึงข้อมูลล่าสุด” ตัวเลขในเอกสารจะอัปเดตและเริ่มลงนามใหม่ตั้งแต่ลำดับที่ 1</p>
+        <div class="row" style="flex-wrap:wrap">
+          <button v-if="doc.kind !== 'hr_daily' || editDay === doc.period_from" class="btn" :disabled="busy || !editTitle || editTitle === doc.title" @click="saveTitle">💾 บันทึกชื่ออย่างเดียว</button>
+          <button v-if="doc.kind === 'hr_daily'" class="btn primary grow" :disabled="busy || !editDay" @click="refreshDoc">
+            🔄 {{ editDay !== doc.period_from ? 'เปลี่ยนวันที่ คำนวณใหม่' : 'ดึงข้อมูลล่าสุด' }}{{ doc.status === 'returned' ? 'แล้วส่งลงนามใหม่' : '' }}</button>
+        </div>
       </template>
       <p v-else class="small muted" style="margin:0">มีผู้ลงนามแล้ว — แก้ไขไม่ได้ ถ้าข้อมูลผิด ให้ผู้ลงนามกด “ส่งกลับแก้ไข” หรือลบแล้วสร้างใหม่</p>
       <button v-if="doc.canDelete" class="btn danger" :disabled="busy" @click="removeDoc">🗑 ลบเอกสารนี้</button>
@@ -138,6 +146,7 @@ import HrDailyPaper from '../components/HrDailyPaper.vue';
 const route = useRoute();
 const router = useRouter();
 const editTitle = ref('');
+const editDay = ref('');
 const STATUS_TXT = { pending: 'รอลงนาม', approved: 'อนุมัติแล้ว', returned: 'ส่งกลับแก้ไข' };
 const STATUS_CLS = { pending: 'info', approved: 'ok', returned: 'bad' };
 const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -185,6 +194,7 @@ async function load() {
   try {
     doc.value = await api(`/api/report-docs/${route.params.id}`);
     editTitle.value = doc.value.title;
+    editDay.value = doc.value.period_from;
     if (route.hash === '#manage') nextTick(() => document.getElementById('manage')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     const urls = {};
     for (const st of doc.value.steps) {
@@ -223,6 +233,8 @@ async function sendBack() {
   } catch (e) { error.value = e.message; } finally { busy.value = false; }
 }
 
+function goManage() { document.getElementById('manage')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
 async function saveTitle() {
   busy.value = true; error.value = ''; msg.value = '';
   try {
@@ -233,10 +245,11 @@ async function saveTitle() {
 }
 
 async function refreshDoc() {
-  if (!window.confirm('ดึงข้อมูลล่าสุดแล้วส่งลงนามใหม่?\nตัวเลขในเอกสารจะคำนวณใหม่จากข้อมูลปัจจุบัน และเริ่มลงนามตั้งแต่ลำดับที่ 1')) return;
+  const moved = editDay.value !== doc.value.period_from;
+  if (!window.confirm(`${moved ? 'เปลี่ยนวันที่ของรายงาน' : 'ดึงข้อมูลล่าสุด'}แล้วส่งลงนามใหม่?\nตัวเลขในเอกสารจะคำนวณใหม่จากข้อมูลปัจจุบัน และเริ่มลงนามตั้งแต่ลำดับที่ 1`)) return;
   busy.value = true; error.value = ''; msg.value = '';
   try {
-    await api(`/api/report-docs/${doc.value.id}`, { method: 'PATCH', body: { title: editTitle.value, refresh: true } });
+    await api(`/api/report-docs/${doc.value.id}`, { method: 'PATCH', body: { title: editTitle.value, refresh: true, ...(moved ? { day: editDay.value } : {}) } });
     msg.value = 'อัปเดตข้อมูลแล้ว ส่งให้ผู้ลงนามลำดับที่ 1';
     await load();
   } catch (e) { error.value = e.message; } finally { busy.value = false; }
@@ -318,6 +331,8 @@ onMounted(() => {
 .decision { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; gap: 6px; }
 .decision legend { padding: 0 6px; color: var(--muted); font-size: .85rem; }
 .manage { border-left: 4px solid var(--brand-2); }
+.alert.back { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.step1 { text-align: left; justify-content: flex-start; font-weight: 700; border-color: var(--brand-2); color: var(--brand-2); }
 .meta { margin-top: 18px; font-size: 11px; color: #666; text-align: center; }
 /* หนังสือราชการ: กระดาษขาวไม่มีกรอบ/เงา ระยะขอบแบบ A4 (บน 2.5 ซ้าย 3 ขวา 2 ล่าง 2 ซม.) */
 .paper.doc { border-radius: 0; box-shadow: none; border: 0; padding: 2.5cm 2cm 2cm 3cm; color: #000; }
