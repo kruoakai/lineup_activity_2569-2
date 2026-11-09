@@ -32,6 +32,23 @@ async function seed() {
   await settings.update({ sign_step1_user: String(u.S1), sign_step2_user: String(u.S2), sign_step3_user: String(u.S3) });
   const types = { T1: 'gov_teacher', T2: 'gov_teacher', T3: 'temp_teacher', T4: 'temp_officer', FR: 'assistant_teacher', S3: 'executive', HR: 'temp_officer' };
   for (const [code, t] of Object.entries(types)) await h.db.query('UPDATE users SET staff_type = ? WHERE id = ?', [t, u[code]]);
+  // ครูมีประวัติย้อนหลัง ~6 สัปดาห์ สำหรับมุมมองสถิติ (แผนกแยก ไม่กระทบรายงานของแผนกทดสอบ)
+  const c = await h.createDept('แผนกสถิติ');
+  u.ST = await h.createUser({ code: 'ST', name: 'ครูมีสถิติ', dept: c });
+  const today = h.clock.bangkok().day;
+  const start = h.clock.addDays(today, -42);
+  await h.db.query('UPDATE users SET created_at = ? WHERE id = ?', [`${start} 00:00:00`, u.ST]);
+  const rows = [];
+  for (let i = 0, d = start; d < today; i += 1, d = h.clock.addDays(d, 1)) {
+    const k = i % 10;
+    if (k === 9) continue; // ขาด
+    const status = k === 4 ? 'official' : k === 7 ? 'leave' : 'present';
+    const method = status !== 'present' ? 'hr' : k % 3 === 0 ? 'self_qr' : 'self_gps';
+    const min = 50 + ((i * 7) % 38); // 07:50–08:27
+    const at = new Date(Date.parse(`${d}T07:00:00+07:00`) + min * 60_000);
+    rows.push([u.ST, d, status, status === 'leave' ? 'sick' : null, method, method === 'hr' ? u.HR : u.ST, at, status === 'official' ? 'ประชุม สอศ.' : '']);
+  }
+  await h.db.query('INSERT INTO attendance (user_id, day, status, leave_type, method, checked_by, checked_at, note) VALUES ?', [rows]);
   return u;
 }
 

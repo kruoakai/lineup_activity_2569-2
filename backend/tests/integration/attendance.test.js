@@ -328,3 +328,35 @@ describe('รายงาน', () => {
     expect(r.text).toContain("'=HYPERLINK(1)");
   });
 });
+
+describe('สถิติของฉัน', () => {
+  test('ข้อมูลรายวัน: วันเข้าแถว/วันหยุด/วันที่นับ และเฉพาะข้อมูลของตนเอง', async () => {
+    await h.db.query("UPDATE users SET created_at = '2026-10-01 00:00:00' WHERE id IN (?)", [[ids.c, ids.b]]);
+    await h.db.query("INSERT INTO semesters (name, start_date, end_date) VALUES ('2/2569', '2026-11-01', '2027-03-31')");
+    await h.db.query("INSERT INTO assembly_days (day, status, note) VALUES ('2026-11-04', 'holiday', 'วันหยุดทดสอบ')");
+    clock.setNow(bkk('2026-11-06', '07:30:00'));
+    await h.db.query(
+      `INSERT INTO attendance (user_id, day, status, method, checked_by, checked_at) VALUES
+       (?, '2026-11-02', 'present', 'self_gps', ?, '2026-11-02 01:05:00'),
+       (?, '2026-11-03', 'leave', 'hr', ?, '2026-11-03 02:00:00'),
+       (?, '2026-11-02', 'present', 'self_gps', ?, '2026-11-02 01:00:00')`,
+      [ids.c, ids.c, ids.c, ids.admin, ids.b, ids.b],
+    );
+    const r = await api(tok.C1).get('/api/attendance/me/stats?from=2026-11-01&to=2026-11-30').expect(200);
+    expect(r.body.to).toBe('2026-11-06'); // ไม่เกินวันนี้
+    expect(r.body.records.map((x) => x.day)).toEqual(['2026-11-02', '2026-11-03']);
+    const day = (d) => r.body.days.find((x) => x.day === d);
+    expect(day('2026-11-01')).toMatchObject({ assembly: false, counted: false }); // อาทิตย์
+    expect(day('2026-11-04')).toMatchObject({ assembly: false, note: 'วันหยุดทดสอบ' });
+    expect(day('2026-11-05')).toMatchObject({ assembly: true, counted: true });
+    expect(day('2026-11-06')).toMatchObject({ assembly: true, counted: false }); // ยังไม่ปิดระบบ
+    expect(r.body.presets.semester).toMatchObject({ label: 'ภาคเรียน 2/2569', from: '2026-11-01', to: '2026-11-06' });
+    expect(r.body.presets.year.label).toBe('ปีการศึกษา 2569');
+    expect(r.body.closeTime).toMatch(/^\d{2}:\d{2}/);
+    // ค่าเริ่มต้น = ภาคเรียนปัจจุบัน
+    expect((await api(tok.C1).get('/api/attendance/me/stats').expect(200)).body.from).toBe('2026-11-01');
+    await api(tok.C1).get('/api/attendance/me/stats?from=2025-01-01&to=2026-11-06').expect(400);
+    await api(tok.C1).get('/api/attendance/me/stats?from=bad').expect(400);
+    clock.setNow(null);
+  });
+});

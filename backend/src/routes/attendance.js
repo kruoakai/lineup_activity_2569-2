@@ -35,6 +35,11 @@ router.get('/me/history', async (req, res) => {
   res.json({ items: await attendance.history(req.user.id) });
 });
 
+// สถิติของฉัน (ปฏิทิน / รายเดือน / เวลาเช็กชื่อ)
+router.get('/me/stats', async (req, res) => {
+  res.json(await require('../services/myStats').stats(req.user, req.query));
+});
+
 // เช็กแทน / บันทึกสถานะ
 router.post('/record', async (req, res) => {
   res.json(await attendance.recordFor(req.user, req.body || {}, req.ip));
