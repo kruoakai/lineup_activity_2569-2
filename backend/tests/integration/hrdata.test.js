@@ -159,3 +159,22 @@ describe('ส่งออกรายงานสรุปการปฏิบ�
     expect(miss).toEqual([['2027-02-02', 'T2', 'ขาด'], ['2027-02-02', 'T1', 'ขาด'], ['2027-02-01', 'T2', 'ขาด']]);
   });
 });
+
+describe('สรุปรายชื่อตามช่วงวันที่ (พิมพ์รายสัปดาห์/เดือน)', () => {
+  test('นับวันไม่เข้าแถว ลา มาสาย ต่อคน · ไม่นับวันที่ยังไม่ถึง · จำกัด 62 วัน', async () => {
+    clock.setNow(bkk('2027-02-03', '10:00:00')); // พุธ ปิดเช็กชื่อแล้ว
+    await hr.put('/api/hr/marks/2027-02-02/late').send({ userIds: [ids.t2] }).expect(200);
+    await teacher.get('/api/hr/range?from=2027-02-01&to=2027-02-07').expect(403);
+    const r = await hr.get('/api/hr/range?from=2027-02-01&to=2027-02-07').expect(200);
+    expect(r.body).toMatchObject({ assemblyDays: 3, workDays: 3 });
+    const t1 = r.body.people.find((p) => p.id === ids.t1);
+    const t2 = r.body.people.find((p) => p.id === ids.t2);
+    expect(t1.missing.map((x) => x.day)).toEqual(['2027-02-02', '2027-02-03']); // วันที่ 1 ลาป่วย
+    expect(t1.leave).toEqual([{ day: '2027-02-01', note: 'ลาป่วย', detail: '' }]);
+    expect(t2.missing.map((x) => x.day)).toEqual(['2027-02-01', '2027-02-02', '2027-02-03']);
+    expect(t2.late.map((x) => x.day)).toEqual(['2027-02-02']);
+    expect(r.body.people.some((p) => p.id === ids.hr)).toBe(false); // ไม่ต้องเข้าแถว และไม่มีรายการ
+    expect((await hr.get('/api/hr/range?from=2027-01-01&to=2027-03-31')).status).toBe(400);
+    expect((await hr.get('/api/hr/range?from=2027-02-07&to=2027-02-01')).status).toBe(400);
+  });
+});

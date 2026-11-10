@@ -61,6 +61,59 @@ async function dayView(day) {
   };
 }
 
+/**
+ * สรุปรายชื่อตามช่วงวันที่ (สัปดาห์ / เดือน / กำหนดเอง สูงสุด 62 วัน) สำหรับพิมพ์
+ * ต่อคน: วันที่ไม่เข้าแถว (ขาด/รอตรวจสอบ — นับเฉพาะวันที่มีกิจกรรมและปิดเช็กชื่อแล้ว), มาสาย, ไม่ลงเวลากลับ, ลา, ราชการ, งานนโยบาย
+ */
+const RANGE_MAX = 62;
+async function rangeView(from, to) {
+  checkDay(from); checkDay(to);
+  if (from > to) throw new HttpError(400, 'ช่วงวันที่ไม่ถูกต้อง');
+  const state = await schedule.windowState();
+  const end = to > state.day ? state.day : to;
+  let n = 0;
+  for (let d = from; d <= to; d = clock.addDays(d, 1)) if ((n += 1) > RANGE_MAX) throw new HttpError(400, `เลือกช่วงได้ไม่เกิน ${RANGE_MAX} วัน`);
+  const closed = (d) => d < state.day || (d === state.day && state.phase === 'closed');
+  const assemblyDays = from <= end ? (await schedule.assemblyDaysBetween(from, end)).filter(closed) : [];
+  const workDays = [];
+  for (let d = from; d <= end; d = clock.addDays(d, 1)) if ((await workInfo(d)).work) workDays.push(d);
+
+  const people = await db.query(
+    `SELECT u.id, u.full_name, u.must_assemble, d.name AS department
+       FROM users u LEFT JOIN departments d ON d.id = u.department_id
+      WHERE u.active = 1 AND (u.role <> 'admin' OR u.staff_type IS NOT NULL)`);
+  const recs = from <= end ? await db.query(
+    'SELECT user_id, day, status, leave_type, note FROM attendance WHERE day BETWEEN ? AND ?', [from, end]) : [];
+  const marks = from <= end ? await db.query('SELECT user_id, day, kind FROM hr_marks WHERE day BETWEEN ? AND ?', [from, end]) : [];
+  const byKey = new Map(recs.map((r) => [`${r.user_id}|${r.day}`, r]));
+  const work = new Set(workDays);
+  const out = new Map(people.map((p) => [p.id, {
+    id: p.id, full_name: p.full_name, department: p.department,
+    missing: [], late: [], no_signout: [], leave: [], official: [], policy: [],
+  }]));
+  for (const p of people) {
+    if (!p.must_assemble) continue;
+    for (const d of assemblyDays) {
+      const r = byKey.get(`${p.id}|${d}`);
+      if (!r || ['absent', 'pending'].includes(r.status)) out.get(p.id).missing.push({ day: d, note: r?.status === 'pending' ? 'รอตรวจสอบ' : '' });
+    }
+  }
+  for (const r of recs) {
+    const o = out.get(r.user_id);
+    if (!o || !work.has(r.day) || !['leave', 'official', 'policy'].includes(r.status)) continue;
+    o[r.status].push({ day: r.day, note: r.status === 'leave' ? LEAVE_TYPES[r.leave_type] || 'ลา' : r.note || '', detail: r.status === 'leave' ? r.note || '' : '' });
+  }
+  for (const m of marks) {
+    const o = out.get(m.user_id);
+    if (o && MARK_KINDS[m.kind]) o[m.kind].push({ day: m.day, note: '' });
+  }
+  for (const o of out.values()) for (const k of ['missing', 'late', 'no_signout', 'leave', 'official', 'policy']) o[k].sort((a, b) => a.day.localeCompare(b.day));
+  return {
+    from, to, today: state.day, assemblyDays: assemblyDays.length, workDays: workDays.length,
+    people: [...out.values()].filter((o) => ['missing', 'late', 'no_signout', 'leave', 'official', 'policy'].some((k) => o[k].length)),
+  };
+}
+
 /** บันทึกสถานะให้หลายคน ช่วงวันที่ได้ (สูงสุด 31 วัน) — ข้ามวันหยุดอัตโนมัติ */
 async function setStatus(actor, body, ip) {
   const { from, to = from, status } = body;
@@ -216,4 +269,4 @@ async function dailySummary(day) {
   return { snapshot, warnings, unclassified: unclassified.map((p) => ({ id: p.id, full_name: p.full_name })) };
 }
 
-module.exports = { dayView, setStatus, setMarks, setStaffType, dailySummary, workInfo, LEAVE_TYPES, MARK_KINDS, HR_STATUSES };
+module.exports = { dayView, rangeView, setStatus, setMarks, setStaffType, dailySummary, workInfo, LEAVE_TYPES, MARK_KINDS, HR_STATUSES };

@@ -25,6 +25,11 @@ router.get('/day/:day', async (req, res) => {
   res.json(await hr.dayView(req.params.day));
 });
 
+// สรุปรายชื่อตามช่วงวันที่ (พิมพ์รายสัปดาห์ / รายเดือน / กำหนดเอง)
+router.get('/range', async (req, res) => {
+  res.json(await hr.rangeView(String(req.query.from || ''), String(req.query.to || '')));
+});
+
 router.post('/status', async (req, res) => {
   const b = req.body || {};
   const r = await hr.setStatus(req.user, b, req.ip);

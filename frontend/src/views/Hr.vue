@@ -5,14 +5,16 @@
       <template v-for="(pg, pi) in printOut.pages" :key="pi">
         <div class="ps-page" :class="{ brk: pi > 0 }">
           <h2 class="ps-title">รายชื่อบุคลากร{{ pg.dept ? ` · ${pg.dept}` : '' }}</h2>
-          <p class="ps-sub">{{ thaiDate(day) }} · พิมพ์เมื่อ {{ printOut.at }}{{ printOut.open ? ' (ช่วงเปิดเช็กชื่อ — ข้อมูล ณ เวลาที่พิมพ์)' : '' }}</p>
+          <p class="ps-sub">{{ printOut.period }} · พิมพ์เมื่อ {{ printOut.at }}{{ printOut.open ? ' (ช่วงเปิดเช็กชื่อ — ข้อมูล ณ เวลาที่พิมพ์)' : '' }}</p>
           <template v-for="(c, ci) in pg.cats" :key="c.k">
-            <h3 class="ps-cat">{{ ci + 1 }}. {{ c.label }} <span>{{ c.rows.length }} คน</span></h3>
+            <h3 class="ps-cat">{{ ci + 1 }}. {{ c.label }} <span>{{ c.rows.length }} คน{{ printOut.multi && c.rows.length ? ` · รวม ${c.rows.reduce((a, r) => a + r.count, 0)} ครั้ง` : '' }}</span></h3>
             <table v-if="c.rows.length" class="ps-tbl">
-              <thead><tr><th class="n">ที่</th><th>ชื่อ-สกุล</th><th v-if="!pg.dept">แผนก/งาน</th><th>{{ c.k === 'missing' ? 'สถานะ' : 'หมายเหตุ' }}</th></tr></thead>
+              <thead><tr><th class="n">ที่</th><th>ชื่อ-สกุล</th><th v-if="!pg.dept">แผนก/งาน</th><th v-if="printOut.multi" class="n">วัน</th>
+                <th>{{ printOut.multi ? 'วันที่' : c.k === 'missing' ? 'สถานะ' : 'หมายเหตุ' }}</th></tr></thead>
               <tbody>
                 <tr v-for="(r, ri) in c.rows" :key="r.id">
-                  <td class="n">{{ ri + 1 }}</td><td>{{ r.full_name }}</td><td v-if="!pg.dept">{{ r.department || '-' }}</td><td>{{ r.note }}</td>
+                  <td class="n">{{ ri + 1 }}</td><td>{{ r.full_name }}</td><td v-if="!pg.dept">{{ r.department || '-' }}</td>
+                  <td v-if="printOut.multi" class="n">{{ r.count }}</td><td>{{ r.note }}</td>
                 </tr>
               </tbody>
             </table>
@@ -197,15 +199,29 @@
     <!-- เลือกหมวดที่จะพิมพ์ -->
     <div v-if="printSheet" class="modal-back" @click.self="printSheet = false">
       <div class="modal stack" role="dialog" aria-modal="true" aria-label="พิมพ์รายชื่อ">
-        <div class="ab-head"><b>🖨 พิมพ์รายชื่อ · {{ thaiDate(day) }}</b><button type="button" class="btn sm" @click="printSheet = false">ปิด</button></div>
-        <p class="small muted" style="margin:0">เลือกหมวดที่ต้องการพิมพ์ (ใช้ข้อมูลที่แสดงอยู่ตอนนี้{{ marksDirty ? ' รวมมาสายที่ยังไม่ได้บันทึก' : '' }})</p>
-        <label v-for="c in PRINT_CATS" :key="c.k" class="chk pc">
-          <input v-model="printPick" type="checkbox" :value="c.k" :disabled="!catRows(c.k).length && c.k !== 'missing'" />
-          <span class="grow">{{ catLabel(c.k) }}</span><b>{{ catRows(c.k).length }} คน</b>
-        </label>
+        <div class="ab-head"><b>🖨 พิมพ์รายชื่อ</b><button type="button" class="btn sm" @click="printSheet = false">ปิด</button></div>
+        <div class="chips pmode" role="radiogroup" aria-label="ช่วงเวลา">
+          <button v-for="m in PRINT_MODES" :key="m.k" type="button" role="radio" :aria-checked="printMode === m.k" :class="{ on: printMode === m.k }" @click="printMode = m.k">{{ m.label }}</button>
+        </div>
+        <div v-if="printMode === 'range'" class="row" style="flex-wrap:wrap;gap:8px">
+          <label class="field grow"><span>ตั้งแต่</span><input v-model="rangeFrom" type="date" :max="today" /></label>
+          <label class="field grow"><span>ถึง</span><input v-model="rangeTo" type="date" :min="rangeFrom" :max="today" /></label>
+        </div>
+        <p class="small" style="margin:0"><b>{{ periodText }}</b>
+          <template v-if="printMode !== 'day' && rangeData"> · วันเข้าแถว {{ rangeData.assemblyDays }} วัน · วันทำงาน {{ rangeData.workDays }} วัน</template></p>
+        <p v-if="printMode === 'day'" class="small muted" style="margin:0">ใช้ข้อมูลที่แสดงอยู่ตอนนี้{{ marksDirty ? ' รวมมาสายที่ยังไม่ได้บันทึก' : '' }}</p>
+        <p v-else class="small muted" style="margin:0">นับเฉพาะวันที่ผ่านมาแล้ว · ไม่เข้าแถวนับเฉพาะวันที่มีกิจกรรมและปิดเช็กชื่อแล้ว · ตารางแสดงจำนวนวันและวันที่ของแต่ละคน</p>
+        <div v-if="rangeError" class="alert bad small" style="margin:0">{{ rangeError }}</div>
+        <p v-if="rangeLoading" class="small muted" style="margin:0">กำลังโหลด…</p>
+        <template v-else>
+          <label v-for="c in PRINT_CATS" :key="c.k" class="chk pc">
+            <input v-model="printPick" type="checkbox" :value="c.k" :disabled="!catRows(c.k).length && c.k !== 'missing'" />
+            <span class="grow">{{ catLabel(c.k) }}</span><b>{{ catRows(c.k).length }} คน</b>
+          </label>
+        </template>
         <label class="chk pc opt"><input v-model="printByDept" type="checkbox" />
           <span class="grow">แยกตามแผนก/งาน — ขึ้นหน้าใหม่ทุกแผนก (ตัดแจกแต่ละแผนกได้)</span></label>
-        <button type="button" class="btn primary block" :disabled="!printPick.length" @click="doPrint">🖨 พิมพ์ {{ printPick.length }} หมวด</button>
+        <button type="button" class="btn primary block" :disabled="!printPick.length || rangeLoading || !!rangeError" @click="doPrint">🖨 พิมพ์ {{ printPick.length }} หมวด</button>
       </div>
     </div>
 
@@ -265,7 +281,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, download } from '../api';
 import { askPassword } from '../confirm';
-import { STATUS, statusLabel, thaiDate, thaiTime, serverToday, addDays, LEAVE_TYPE } from '../util';
+import { STATUS, statusLabel, thaiDate, thaiRange, thaiTime, serverToday, addDays, weekStart, LEAVE_TYPE } from '../util';
 
 const router = useRouter();
 const route = useRoute();
@@ -422,13 +438,76 @@ const PRINT_CATS = [
   { k: 'missing' }, { k: 'late', label: 'มาสาย' }, { k: 'no_signout', label: 'ไม่ลงเวลากลับ' },
   { k: 'leave', label: 'ลา' }, { k: 'official', label: 'ไปราชการ' }, { k: 'policy', label: 'ไปปฏิบัติงานตามนโยบาย' },
 ];
+const PRINT_MODES = [{ k: 'day', label: 'รายวัน' }, { k: 'week', label: 'รายสัปดาห์' }, { k: 'month', label: 'รายเดือน' }, { k: 'range', label: 'กำหนดช่วง' }];
 const printSheet = ref(false);
 const printPick = ref(['missing']);
 const printByDept = ref(false);
 const printOut = ref(null);
-const catLabel = (k) => (k === 'missing' ? (missingDone.value ? 'ไม่เข้าแถว (ขาด / รอตรวจสอบ)' : 'ยังไม่เช็กชื่อ') : PRINT_CATS.find((c) => c.k === k).label);
+const printMode = ref('day');
+const rangeFrom = ref('');
+const rangeTo = ref('');
+const rangeData = ref(null);
+const rangeLoading = ref(false);
+const rangeError = ref('');
+// ช่วงวันที่ของการพิมพ์ — อิงวันที่ที่เลือกอยู่ในหน้า
+const printRange = computed(() => {
+  if (printMode.value === 'week') { const f = weekStart(day.value); return [f, addDays(f, 6)]; }
+  if (printMode.value === 'month') {
+    const [y, m] = day.value.split('-').map(Number);
+    return [`${y}-${String(m).padStart(2, '0')}-01`, new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)];
+  }
+  if (printMode.value === 'range') return [rangeFrom.value, rangeTo.value];
+  return [day.value, day.value];
+});
+const periodText = computed(() => {
+  const [f, t] = printRange.value;
+  if (printMode.value === 'day') return thaiDate(day.value);
+  return f && t ? `${PRINT_MODES.find((m) => m.k === printMode.value).label} ${thaiRange(f, t)}` : 'เลือกช่วงวันที่';
+});
+let rangeSeq = 0;
+async function loadRange() {
+  rangeData.value = null;
+  rangeError.value = '';
+  if (printMode.value === 'day') return;
+  const [f, t] = printRange.value;
+  if (!f || !t) { rangeError.value = 'เลือกวันที่ให้ครบ'; return; }
+  if (f > t) { rangeError.value = 'วันเริ่มต้องไม่หลังวันสิ้นสุด'; return; }
+  const seq = (rangeSeq += 1);
+  rangeLoading.value = true;
+  try {
+    const r = await api(`/api/hr/range?from=${f}&to=${t}`);
+    if (seq === rangeSeq) rangeData.value = r;
+  } catch (e) {
+    if (seq === rangeSeq) rangeError.value = e.message;
+  } finally {
+    if (seq === rangeSeq) rangeLoading.value = false;
+  }
+}
+watch([printMode, rangeFrom, rangeTo], () => { if (printSheet.value) loadRange(); });
+const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+// [{day, note}] → "3 (ลาป่วย), 4 พ.ย. · 1 ธ.ค." (รวมตามเดือน)
+function dateList(items) {
+  const groups = [];
+  for (const it of items) {
+    const ym = it.day.slice(0, 7);
+    if (!groups.length || groups.at(-1).ym !== ym) groups.push({ ym, parts: [] });
+    const extra = [it.note, it.detail].filter(Boolean).join(' ');
+    groups.at(-1).parts.push(`${Number(it.day.slice(8))}${extra ? ` (${extra})` : ''}`);
+  }
+  return groups.map((g) => `${g.parts.join(', ')} ${TH_M[Number(g.ym.slice(5)) - 1]}`).join(' · ');
+}
+const catLabel = (k) => {
+  if (k !== 'missing') return PRINT_CATS.find((c) => c.k === k).label;
+  if (printMode.value !== 'day') return 'ไม่เข้าแถว (ขาด / รอตรวจสอบ)';
+  return missingDone.value ? 'ไม่เข้าแถว (ขาด / รอตรวจสอบ)' : 'ยังไม่เช็กชื่อ';
+};
 const byDeptName = (a, b) => (a.department || '').localeCompare(b.department || '', 'th') || a.full_name.localeCompare(b.full_name, 'th');
 function catRows(k) {
+  if (printMode.value !== 'day') {
+    return (rangeData.value?.people || []).filter((p) => p[k].length)
+      .map((p) => ({ id: p.id, full_name: p.full_name, department: p.department, count: p[k].length, note: dateList(p[k]) }))
+      .sort((a, b) => b.count - a.count || byDeptName(a, b));
+  }
   const ps = people.value;
   let list;
   if (k === 'missing') list = missing.value.map((p) => ({ ...p, note: p.status === 'pending' ? 'รอตรวจสอบ' : missingDone.value ? 'ขาด' : 'ยังไม่เช็ก' }));
@@ -438,9 +517,13 @@ function catRows(k) {
   return list.sort(byDeptName);
 }
 function openPrint() {
-  printPick.value = PRINT_CATS.map((c) => c.k).filter((k) => printPick.value.includes(k) && (k === 'missing' || catRows(k).length));
-  if (!printPick.value.length) printPick.value = ['missing'];
+  if (!rangeFrom.value) { rangeFrom.value = weekStart(day.value); rangeTo.value = day.value > today.value ? today.value : day.value; }
+  if (printMode.value === 'day') {
+    printPick.value = PRINT_CATS.map((c) => c.k).filter((k) => printPick.value.includes(k) && (k === 'missing' || catRows(k).length));
+    if (!printPick.value.length) printPick.value = ['missing'];
+  }
   printSheet.value = true;
+  loadRange();
 }
 async function doPrint() {
   const cats = PRINT_CATS.filter((c) => printPick.value.includes(c.k)).map((c) => ({ k: c.k, label: catLabel(c.k), rows: catRows(c.k) }));
@@ -450,7 +533,12 @@ async function doPrint() {
     pages = depts.map((d) => ({ dept: d, cats: cats.map((c) => ({ ...c, rows: c.rows.filter((r) => (r.department || 'ไม่ระบุแผนก') === d) })) }));
     if (!pages.length) pages = [{ dept: '', cats }];
   }
-  printOut.value = { pages, at: thaiTime(new Date().toISOString()), open: !missingDone.value && printPick.value.includes('missing') };
+  const multi = printMode.value !== 'day';
+  printOut.value = {
+    pages, multi, period: multi && rangeData.value ? `${periodText.value} (วันเข้าแถว ${rangeData.value.assemblyDays} วัน)` : periodText.value,
+    at: `${thaiDate(today.value, false)} ${thaiTime(new Date().toISOString())}`,
+    open: !multi && !missingDone.value && printPick.value.includes('missing'),
+  };
   printSheet.value = false;
   await nextTick();
   window.print();
