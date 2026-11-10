@@ -38,7 +38,7 @@ router.get('/summary.xlsx', async (req, res) => {
   const scope = scopeOrThrow(req.user);
   const rep = await reports.summary({
     from: String(req.query.from || ''), to: String(req.query.to || ''),
-    scope, departmentId: Number(req.query.departmentId) || null,
+    scope, departmentId: Number(req.query.departmentId) || null, withMissing: true,
   });
   await exporter.send(res, await exporter.summaryWorkbook(rep), `lineup-${rep.from}_${rep.to}.xlsx`);
 });

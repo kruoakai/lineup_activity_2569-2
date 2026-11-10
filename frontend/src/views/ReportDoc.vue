@@ -4,6 +4,7 @@
       <router-link to="/report-docs" class="btn sm">‹ รายการ</router-link>
       <span class="grow" />
       <span class="badge" :class="STATUS_CLS[doc.status]">{{ STATUS_TXT[doc.status] }}</span>
+      <button v-if="doc.kind === 'hr_daily'" class="btn sm" @click="exportXlsx">⬇ Excel</button>
       <button class="btn sm" @click="print(false)">🖨 พิมพ์ / PDF</button>
       <button v-if="doc.status !== 'approved'" class="btn sm" title="พิมพ์โดยเว้นช่องลงนามว่างทั้งหมด เพื่อลงนามด้วยปากกา" @click="print(true)">🖊 พิมพ์ลงนามด้วยมือ</button>
     </div>
@@ -138,7 +139,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api, auth, imageUrl } from '../api';
+import { api, auth, imageUrl, download } from '../api';
 import { askPassword } from '../confirm';
 import SignaturePad from '../components/SignaturePad.vue';
 import HrDailyPaper from '../components/HrDailyPaper.vue';
@@ -266,6 +267,11 @@ async function removeDoc() {
 }
 
 const wet = ref(false);
+function exportXlsx() {
+  download(`/api/report-docs/${doc.value.id}/export.xlsx`, `สรุปการปฏิบัติงาน-${doc.value.period_from}-เลขที่${doc.value.id}.xlsx`)
+    .catch((e) => { error.value = e.message; });
+}
+
 function print(handSign) {
   wet.value = handSign;
   nextTick(() => {

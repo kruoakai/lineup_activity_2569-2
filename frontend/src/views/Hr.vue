@@ -34,7 +34,29 @@
       <div class="t"><b class="c-info2">{{ counts.policy }}</b><span>งานนโยบาย</span></div>
       <div class="t"><b class="c-muted">{{ counts.leave }}</b><span>ลา</span></div>
       <div class="t"><b class="c-warn">{{ counts.late }}</b><span>มาสาย</span></div>
+      <div class="t"><b :class="missing.length ? 'c-bad' : 'c-muted'">{{ view.isAssemblyDay ? missing.length : '-' }}</b><span>{{ missingDone ? 'ไม่เข้าแถว' : 'ยังไม่เช็ก' }}</span></div>
     </div>
+
+    <!-- ใครไม่เข้าแถว / หายไป — เห็นทันทีไม่ต้องเลื่อนหา -->
+    <section v-if="view?.isAssemblyDay" class="card missing" :class="{ clear: !missing.length }" aria-live="polite">
+      <div class="row" style="flex-wrap:wrap;gap:6px">
+        <h3 class="grow" style="margin:0">
+          <template v-if="!missing.length">✓ {{ missingDone ? 'เข้าแถวครบทุกคน' : 'เช็กชื่อครบทุกคนแล้ว' }}</template>
+          <template v-else>{{ missingDone ? '⚠ ไม่เข้าแถว' : '⏳ ยังไม่เช็กชื่อ' }} {{ missing.length }} คน</template>
+        </h3>
+        <span class="small muted">{{ missingDone ? 'ขาด / รอตรวจสอบ (ไม่นับคนที่ลา ราชการ งานนโยบาย)' : 'ช่วงเปิดเช็กชื่อ — กดโหลดใหม่เพื่ออัปเดต' }}</span>
+        <button v-if="!missingDone" type="button" class="btn sm" :disabled="busy" @click="load">↻ โหลดใหม่</button>
+      </div>
+      <div v-if="missing.length" class="mgroups">
+        <div v-for="g in missingByDept" :key="g.dept" class="mg">
+          <span class="small muted mdept">{{ g.dept }} ({{ g.list.length }})</span>
+          <button v-for="p in g.list" :key="p.id" type="button" class="mchip" :class="{ pend: p.status === 'pending', sel: picked.includes(p.id) }"
+            :title="`แตะเพื่อเลือก ${p.full_name} แล้วตั้งสถานะ`" @click="pickMissing(p)">
+            {{ p.full_name }}<small v-if="p.status === 'pending'"> · รอตรวจสอบ</small></button>
+        </div>
+      </div>
+      <p v-if="missing.length" class="small muted" style="margin:6px 0 0">แตะชื่อเพื่อเลือก → <b>ตั้งสถานะ</b> (เช่น ลา / ไปราชการ / มา (เช็กชื่อแทน)) · รายชื่อนี้คือข้อ 5 ของรายงาน</p>
+    </section>
 
     <div class="tabs" role="tablist">
       <button v-for="t in TABS" :key="t.k" role="tab" :aria-selected="tab === t.k" :class="{ on: tab === t.k }" @click="tab = t.k">
@@ -77,13 +99,44 @@
           บันทึก (มาสาย {{ marks.late.length }} · ไม่ลงเวลากลับ {{ marks.no_signout.length }})</button>
       </section>
 
-      <!-- ประเภทบุคลากร -->
+      <!-- ข้อมูลบุคลากร: ชื่อ-สกุล ตำแหน่ง ประเภท -->
+      <section v-if="tab === 'types'" class="card stack xl">
+        <h3 style="margin:0">แก้ชื่อ-สกุล / ตำแหน่ง / ประเภท ทีละหลายคนด้วย Excel</h3>
+        <div class="xlways">
+          <div class="xw"><b>ก. แก้จากข้อมูลเดิม</b><span class="small muted">ดาวน์โหลดรายชื่อทุกคน แก้ในไฟล์ แล้วนำกลับเข้า</span>
+            <button type="button" class="btn sm" :disabled="busy" @click="peopleExport">⬇ ดาวน์โหลดข้อมูลทั้งหมด</button></div>
+          <div class="xw"><b>ข. กรอกเฉพาะคนที่ต้องแก้</b><span class="small muted">แม่แบบว่าง ใส่รหัสพนักงาน + ช่องที่ต้องแก้</span>
+            <button type="button" class="btn sm" :disabled="busy" @click="peopleTemplate">⬇ แม่แบบ .xlsx</button></div>
+          <label class="xw drop"><b>📥 นำเข้าไฟล์ที่แก้แล้ว</b><span class="small muted">{{ imp.name || 'แตะเพื่อเลือกไฟล์ .xlsx — ตรวจผลก่อนบันทึกเสมอ' }}</span>
+            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="pickImport" /></label>
+        </div>
+        <div v-if="imp.plan" class="stack">
+          <p class="small" style="margin:0">ผลตรวจ <b>{{ imp.name }}</b>: แก้ไข <b class="c-info">{{ imp.plan.summary.update }}</b> คน · ไม่เปลี่ยน {{ imp.plan.summary.same }}
+            · ผิดพลาด (ข้าม) <b :class="imp.plan.summary.error ? 'c-bad' : ''">{{ imp.plan.summary.error }}</b></p>
+          <ul class="plist imp">
+            <li v-for="r in impRows" :key="r.line" class="nohover">
+              <span class="small muted">แถว {{ r.line }}</span>
+              <div class="grow pn"><b>{{ r.full_name || '(ไม่มีชื่อ)' }}</b><span class="small muted">{{ r.employee_code }}</span>
+                <span v-if="r.action === 'error'" class="small c-bad">{{ r.errors.join(' · ') }}</span>
+                <span v-for="(c, k) in r.changes" :key="k" class="small">{{ FIELD[k] }}: <s>{{ showVal(k, c.from) }}</s> → <b>{{ showVal(k, c.to) }}</b></span>
+              </div>
+              <span class="badge" :class="r.action === 'error' ? 'bad' : 'info'">{{ r.action === 'error' ? 'ข้าม' : 'แก้ไข' }}</span>
+            </li>
+            <li v-if="!impRows.length" class="muted small">ไม่มีข้อมูลที่เปลี่ยนแปลง</li>
+          </ul>
+          <div class="row">
+            <button type="button" class="btn grow" :disabled="busy" @click="imp = { name: '', file: '', plan: null }">ยกเลิก</button>
+            <button type="button" class="btn primary grow" :disabled="busy || !imp.plan.summary.update" @click="saveImport">บันทึก {{ imp.plan.summary.update }} คน</button>
+          </div>
+        </div>
+      </section>
       <section v-if="tab === 'types'" class="card">
-        <p class="small muted" style="margin:0 0 8px">ใช้นับจำนวนในข้อ 1 ของรายงาน · เลือกแล้วบันทึกทันที · กำหนดทีละมากด้วย Excel ได้ที่ <b>นำเข้า/ส่งออกผู้ใช้</b> (ผู้ดูแลระบบ)</p>
-        <label class="chk"><input v-model="onlyUnclassified" type="checkbox" /> แสดงเฉพาะคนที่ยังไม่กำหนด ({{ unclassified }} คน)</label>
+        <p class="small muted" style="margin:0 0 8px">ประเภทใช้นับจำนวนในข้อ 1 ของรายงาน — เลือกแล้วบันทึกทันที · ชื่อ/ตำแหน่งไม่ตรง แตะ <b>✏️</b> เพื่อแก้ทีละคน</p>
+        <label class="chk"><input v-model="onlyUnclassified" type="checkbox" /> แสดงเฉพาะคนที่ยังไม่กำหนดประเภท ({{ unclassified }} คน)</label>
         <ul class="plist">
           <li v-for="p in typeList" :key="p.id" class="nohover">
-            <div class="grow pn"><b>{{ p.full_name }}</b><span class="small muted">{{ p.position_title || '-' }} · {{ p.department || '-' }}</span></div>
+            <button type="button" class="btn sm edit" :aria-label="`แก้ไขชื่อ/ตำแหน่ง ${p.full_name}`" @click="openEdit(p)">✏️</button>
+            <div class="grow pn"><b>{{ p.full_name }}</b><span class="small muted">{{ p.position_title || '(ไม่มีตำแหน่ง)' }} · {{ p.department || '-' }}</span></div>
             <select :value="p.staff_type || ''" :aria-label="`ประเภทบุคลากรของ ${p.full_name}`" @change="setType(p, $event.target.value)">
               <option value="">— ยังไม่กำหนด —</option>
               <option v-for="t in meta.staffTypes" :key="t.code" :value="t.code">{{ t.no }} {{ t.label }}</option>
@@ -102,6 +155,10 @@
             · ไม่เข้ากิจกรรมหน้าเสาธง <b>{{ preview.snapshot.assembly.held ? preview.snapshot.assembly.list.length : '-' }}</b></p>
         </div>
         <div class="row" style="flex-wrap:wrap">
+          <button class="btn sm" :disabled="busy" @click="exportDay">⬇ Excel วันนี้</button>
+          <button class="btn sm" :disabled="busy" @click="exportMonth">⬇ Excel ทั้งเดือน {{ monthText }}</button>
+        </div>
+        <div class="row" style="flex-wrap:wrap">
           <button class="btn grow" :disabled="busy" @click="checkPreview">ตรวจตัวเลขก่อนสร้าง</button>
           <template v-if="fixDoc">
             <router-link class="btn grow" :to="`/report-docs/${fixDoc.id}`">‹ กลับไปเอกสาร</router-link>
@@ -112,6 +169,23 @@
         </div>
       </section>
     </template>
+
+    <!-- แก้ไขข้อมูลบุคลากรทีละคน -->
+    <div v-if="edit" class="modal-back" @click.self="edit = null">
+      <form class="modal stack" role="dialog" aria-modal="true" aria-label="แก้ไขข้อมูลบุคลากร" @submit.prevent="saveEdit">
+        <div class="ab-head"><b>แก้ไขข้อมูลบุคลากร</b><button type="button" class="btn sm" @click="edit = null">ปิด</button></div>
+        <p class="small muted" style="margin:0">รหัสพนักงาน {{ edit.employee_code }} · {{ edit.department || '-' }}</p>
+        <label class="field"><span>ชื่อ-สกุล (มีคำนำหน้า)</span><input v-model="edit.full_name" maxlength="190" required /></label>
+        <label class="field"><span>ตำแหน่ง</span><input v-model="edit.position_title" maxlength="150" placeholder="เช่น ครู, ครูชำนาญการพิเศษ, รองผู้อำนวยการ" /></label>
+        <label class="field"><span>ประเภทบุคลากร</span>
+          <select v-model="edit.staff_type">
+            <option value="">— ยังไม่กำหนด —</option>
+            <option v-for="t in meta.staffTypes" :key="t.code" :value="t.code">{{ t.no }} {{ t.label }}</option>
+          </select></label>
+        <p class="small muted" style="margin:0">ชื่อใหม่ใช้ในรายงานที่สร้างหลังจากนี้ (เอกสารที่สร้างแล้วไม่เปลี่ยนเอง — ใช้ “ดึงข้อมูลล่าสุด” ในเอกสาร) · ย้ายแผนกแจ้งผู้ดูแลระบบ</p>
+        <button class="btn primary block" :disabled="busy || !edit.full_name.trim()">บันทึก</button>
+      </form>
+    </div>
 
     <!-- แถบบันทึกสถานะ (เมื่อเลือกคน) -->
     <div v-if="tab === 'status' && picked.length" class="selbar">
@@ -150,7 +224,8 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api } from '../api';
+import { api, download } from '../api';
+import { askPassword } from '../confirm';
 import { STATUS, statusLabel, thaiDate, serverToday, addDays } from '../util';
 
 const router = useRouter();
@@ -161,8 +236,8 @@ const fixReturn = computed(() => {
   const r = fixDoc.value?.status === 'returned' && [...fixDoc.value.signatures].reverse().find((s) => s.action === 'return');
   return r ? `${r.comment} — ${r.signer_name}` : '';
 });
-const TABS = [{ k: 'status', label: 'ลา / ราชการ / นโยบาย' }, { k: 'marks', label: 'มาสาย / ไม่ลงเวลากลับ' }, { k: 'types', label: 'ประเภทบุคลากร' }];
-const FILTERS = [{ k: 'all', label: 'ทั้งหมด' }, { k: 'set', label: 'มีสถานะแล้ว' }, { k: 'teach', label: 'ข้าราชการ/พนักงานราชการ' }, { k: 'temp', label: 'ลูกจ้างชั่วคราว' }];
+const TABS = [{ k: 'status', label: 'ลา / ราชการ / นโยบาย' }, { k: 'marks', label: 'มาสาย / ไม่ลงเวลากลับ' }, { k: 'types', label: 'ข้อมูลบุคลากร' }];
+const FILTERS = [{ k: 'all', label: 'ทั้งหมด' }, { k: 'missing', label: 'ไม่เข้าแถว / ยังไม่เช็ก' }, { k: 'set', label: 'มีสถานะแล้ว' }, { k: 'teach', label: 'ข้าราชการ/พนักงานราชการ' }, { k: 'temp', label: 'ลูกจ้างชั่วคราว' }];
 const SETS = [
   { k: 'official', label: 'ไปราชการ', cls: 'info' },
   { k: 'policy', label: 'งานนโยบาย', cls: 'info2' },
@@ -210,12 +285,30 @@ const counts = computed(() => ({
 const match = (p) => !q.value || `${p.full_name} ${p.department || ''} ${p.short || ''}`.toLowerCase().includes(q.value.toLowerCase());
 const statusList = computed(() => people.value.filter((p) => match(p) && (
   filter.value === 'all'
+  || (filter.value === 'missing' && missingIds.value.has(p.id))
   || (filter.value === 'set' && ['official', 'policy', 'leave'].includes(p.status))
   || (filter.value === 'temp' && p.staff_type?.startsWith('temp_'))
   || (filter.value === 'teach' && p.staff_type && !p.staff_type.startsWith('temp_') && p.staff_type !== 'trainee'))));
 const markList = computed(() => people.value.filter(match)
   .sort((a, b) => Number(marks.value.late.includes(b.id) || marks.value.no_signout.includes(b.id)) - Number(marks.value.late.includes(a.id) || marks.value.no_signout.includes(a.id))));
 const typeList = computed(() => people.value.filter((p) => match(p) && (!onlyUnclassified.value || !p.staff_type)));
+// ผู้ไม่เข้าแถว: ต้องเข้าแถว และยังไม่มีบันทึก / ขาด / รอตรวจสอบ (ลา ราชการ งานนโยบาย ไม่นับ)
+const missingDone = computed(() => view.value?.phase === 'closed');
+const missing = computed(() => (view.value?.isAssemblyDay ? people.value.filter((p) => p.must_assemble && (!p.status || ['absent', 'pending'].includes(p.status))) : []));
+const missingIds = computed(() => new Set(missing.value.map((p) => p.id)));
+const missingByDept = computed(() => {
+  const m = new Map();
+  for (const p of missing.value) {
+    const k = p.department || 'ไม่ระบุแผนก';
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(p);
+  }
+  return [...m.entries()].map(([dept, list]) => ({ dept, list })).sort((a, b) => b.list.length - a.list.length || a.dept.localeCompare(b.dept, 'th'));
+});
+function pickMissing(p) {
+  tab.value = 'status';
+  togglePick(p.id);
+}
 const marksDirty = computed(() => JSON.stringify(marks.value) !== savedMarks.value);
 
 async function run(fn) {
@@ -285,6 +378,71 @@ function saveMarks() {
   });
 }
 
+// ---------- แก้ไขข้อมูลบุคลากร ----------
+const FIELD = { full_name: 'ชื่อ', position_title: 'ตำแหน่ง', staff_type: 'ประเภท' };
+const showVal = (k, v) => (k === 'staff_type' ? meta.value.staffTypes.find((t) => t.code === v)?.short || '(ว่าง)' : v || '(ว่าง)');
+const edit = ref(null);
+const imp = ref({ name: '', file: '', plan: null });
+const impRows = computed(() => (imp.value.plan?.rows || []).filter((r) => r.action !== 'same').slice(0, 500));
+
+function openEdit(p) {
+  edit.value = { id: p.id, employee_code: p.employee_code, department: p.department, full_name: p.full_name, position_title: p.position_title || '', staff_type: p.staff_type || '' };
+}
+function saveEdit() {
+  const e = edit.value;
+  return run(async () => {
+    const r = await api(`/api/hr/users/${e.id}`, { method: 'PATCH', body: { full_name: e.full_name, position_title: e.position_title, staff_type: e.staff_type || null } });
+    const p = people.value.find((x) => x.id === e.id);
+    if (p) {
+      Object.assign(p, { full_name: e.full_name.trim().replace(/\s+/g, ' '), position_title: e.position_title.trim(), staff_type: e.staff_type || null });
+      p.short = meta.value.staffTypes.find((t) => t.code === e.staff_type)?.short || p.position_title || '';
+    }
+    edit.value = null;
+    preview.value = null;
+    message.value = r.changed ? `บันทึกข้อมูลของ ${e.full_name.trim()} แล้ว` : 'ไม่มีข้อมูลที่เปลี่ยน';
+  });
+}
+const peopleExport = () => run(() => download('/api/hr/people/export.xlsx', `ข้อมูลบุคลากร-${today.value}.xlsx`));
+const peopleTemplate = () => run(() => download('/api/hr/people/template.xlsx', 'แม่แบบแก้ไขข้อมูลบุคลากร.xlsx'));
+function pickImport(ev) {
+  const f = ev.target.files?.[0];
+  ev.target.value = '';
+  if (!f) return;
+  if (f.size > 5 * 1024 * 1024) { error.value = 'ไฟล์ใหญ่เกิน 5 MB'; return; }
+  const reader = new FileReader();
+  reader.onload = () => run(async () => {
+    imp.value = { name: f.name, file: reader.result, plan: null };
+    imp.value.plan = await api('/api/hr/people/import/preview', { method: 'POST', body: { file: reader.result } });
+  });
+  reader.onerror = () => { error.value = 'เปิดไฟล์ไม่ได้'; };
+  reader.readAsDataURL(f);
+}
+async function saveImport() {
+  const s = imp.value.plan.summary;
+  const password = await askPassword('ยืนยันการแก้ไขข้อมูลบุคลากร', { detail: `แก้ไข ${s.update} คน${s.error ? `\nข้ามแถวผิดพลาด ${s.error} แถว` : ''}` });
+  if (!password) return;
+  await run(async () => {
+    const r = await api('/api/hr/people/import', { method: 'POST', body: { file: imp.value.file, password } });
+    imp.value = { name: '', file: '', plan: null };
+    await load();
+    message.value = `บันทึกข้อมูลบุคลากรแล้ว ${r.update} คน`;
+  });
+}
+
+// ---------- ส่งออก Excel รายงานสรุป ----------
+const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const monthText = computed(() => (day.value ? `${TH_MONTH[Number(day.value.slice(5, 7)) - 1]} ${Number(day.value.slice(0, 4)) + 543}` : ''));
+const exportDay = () => run(async () => {
+  if (marksDirty.value) throw new Error('ยังไม่ได้บันทึกรายชื่อมาสาย/ไม่ลงเวลากลับ');
+  await download(`/api/hr/report/day.xlsx?day=${day.value}`, `สรุปการปฏิบัติงาน-${day.value}.xlsx`);
+});
+const exportMonth = () => run(async () => {
+  const [y, m] = day.value.split('-').map(Number);
+  const f = `${y}-${String(m).padStart(2, '0')}-01`;
+  const t = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  await download(`/api/hr/report/range.xlsx?from=${f}&to=${t}`, `สรุปการปฏิบัติงาน-${f.slice(0, 7)}.xlsx`);
+});
+
 async function setType(p, code) {
   await run(async () => {
     await api(`/api/hr/users/${p.id}/staff-type`, { method: 'PATCH', body: { staffType: code || null } });
@@ -344,10 +502,21 @@ onMounted(async () => {
 .daybar .btn { min-width: 44px; min-height: 44px; font-size: 1.2rem; }
 .dpick { display: flex; flex-direction: column; gap: 2px; }
 .okc { color: var(--ok); font-weight: 600; } .badc { color: var(--bad); font-weight: 600; }
-.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
 .t { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 6px; text-align: center; display: flex; flex-direction: column; }
 .t b { font-size: 1.35rem; line-height: 1.2; }
 .t span { font-size: .72rem; color: var(--muted); }
+.c-bad { color: var(--bad); }
+.missing { border-left: 4px solid var(--bad); }
+.missing.clear { border-left-color: var(--ok); }
+.missing.clear h3 { color: var(--ok); }
+.mgroups { display: grid; gap: 8px; margin-top: 10px; }
+.mg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mdept { flex: 1 0 100%; font-weight: 600; }
+.mchip { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--bad); background: var(--bad-bg); color: var(--bad); font: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; }
+.mchip.pend { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.mchip.sel { background: var(--fill); border-color: var(--fill); color: #fff; }
+.mchip small { font-weight: 400; }
 .c-info { color: var(--info); } .c-info2 { color: #7a5af5; } .c-muted { color: var(--muted); } .c-warn { color: var(--warn); }
 .tabs .dot { font-style: normal; margin-left: 6px; background: var(--bad); color: #fff; border-radius: 10px; padding: 0 6px; font-size: .72rem; }
 .search { margin-bottom: 10px; }
@@ -374,6 +543,14 @@ onMounted(async () => {
 .plist select { width: auto; max-width: 52%; min-height: 36px; font-size: .85rem; }
 .chk { display: flex; gap: 8px; align-items: center; font-size: .9rem; margin-bottom: 6px; }
 .report { border-left: 4px solid var(--fill); }
+.xl { border-left: 4px solid var(--info); }
+.xlways { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.xw { display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.xw .btn { margin-top: auto; align-self: flex-start; }
+.xw.drop { border-style: dashed; cursor: pointer; position: relative; }
+.xw.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.plist.imp { max-height: 40vh; }
+.plist .edit { flex: none; min-width: 36px; min-height: 36px; padding: 0; }
 .selbar { position: sticky; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 5; display: flex; align-items: center; gap: 8px; background: var(--card); border: 2px solid var(--brand-2); border-radius: 14px; padding: 8px 10px 8px 14px; box-shadow: 0 -6px 24px rgba(15, 42, 74, .18); margin-top: 10px; }
 .actionbar { display: grid; gap: 10px; }
 .actionbar .row .field { flex: 1 1 140px; min-width: 0; }

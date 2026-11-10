@@ -1,6 +1,6 @@
 const express = require('express');
 const official = require('../services/official');
-const { authenticate, requireReady } = require('../middleware/auth');
+const { authenticate, requireReady, HttpError } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authenticate, requireReady);
@@ -19,6 +19,13 @@ router.get('/preview', async (req, res) => {
 
 router.post('/', async (req, res) => {
   res.status(201).json(await official.create(req.user, req.body || {}));
+});
+
+// ส่งออกเอกสารสรุปการปฏิบัติงานประจำวันเป็น Excel (ตัวเลขตามที่ตรึงไว้ในเอกสาร)
+router.get('/:id/export.xlsx', async (req, res) => {
+  const doc = await official.get(req.user, req.params.id);
+  if (doc.kind !== 'hr_daily') throw new HttpError(400, 'ส่งออก Excel ได้เฉพาะรายงานสรุปการปฏิบัติงานประจำวัน');
+  await require('../services/exporter').send(res, require('../services/hrExport').dailyWorkbook(doc.snapshot), `สรุปการปฏิบัติงาน-${doc.snapshot.day}-เลขที่${doc.id}.xlsx`);
 });
 
 router.get('/:id', async (req, res) => {

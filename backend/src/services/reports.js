@@ -35,7 +35,7 @@ async function scopedUsers(scope, departmentId) {
  * สรุปช่วงวันที่ (รายวัน = from = to)
  * คนที่ไม่มีบันทึกในวันที่ปิดการเช็กชื่อแล้ว นับเป็น "ขาด"
  */
-async function summary({ from, to, scope, departmentId }) {
+async function summary({ from, to, scope, departmentId, withMissing = false }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
     throw new HttpError(400, 'ช่วงวันที่ไม่ถูกต้อง');
   }
@@ -61,6 +61,7 @@ async function summary({ from, to, scope, departmentId }) {
   const perUnit = new Map();
   const perDay = new Map(days.map((d) => [d, emptyCounts()]));
   const perUser = [];
+  const missing = []; // ผู้ไม่เข้าแถวรายวัน (ขาด / รอตรวจสอบ / ยังไม่เช็ก)
   let proxyCount = 0;
   let flaggedCount = 0;
 
@@ -80,6 +81,9 @@ async function summary({ from, to, scope, departmentId }) {
       if (r && ['proxy_dept', 'proxy_peer', 'proxy_activity', 'admin'].includes(r.method)) proxyCount += 1;
       if (r && r.flagged) flaggedCount += 1;
       for (const c of [uc, dc, gc, total, perDay.get(d)]) { c.expected += 1; c[st] += 1; }
+      if (['absent', 'pending', 'not_checked'].includes(st)) {
+        missing.push({ day: d, user_id: u.id, employee_code: u.employee_code, full_name: u.full_name, department_name: u.department_name, status: st });
+      }
     }
     perUser.push({ user_id: u.id, employee_code: u.employee_code, full_name: u.full_name, department_name: u.department_name, unit_name: u.unit_name, ...uc, rate: rate(uc) });
   }
@@ -94,6 +98,10 @@ async function summary({ from, to, scope, departmentId }) {
       .sort((a, b) => a.unit_order - b.unit_order || a.unit_name.localeCompare(b.unit_name, 'th')),
     trend: [...perDay.entries()].map(([day, c]) => ({ day, ...c, rate: rate(c) })),
     users: perUser,
+    // รายชื่อผู้ไม่เข้าแถวรายวัน — ส่งเมื่อขอเท่านั้น (หน้ารายงาน / Excel)
+    missing: withMissing
+      ? missing.sort((a, b) => b.day.localeCompare(a.day) || a.department_name.localeCompare(b.department_name, 'th') || a.full_name.localeCompare(b.full_name, 'th'))
+      : undefined,
   };
 }
 

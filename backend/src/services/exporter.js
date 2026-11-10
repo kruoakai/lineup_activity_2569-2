@@ -56,6 +56,11 @@ function addSummarySheets(wb, rep) {
   sheet(wb, 'รายแผนก', [['department_name', 'แผนก', 30], ['members', 'จำนวนคน', 10], ...counts], rep.departments);
   sheet(wb, 'รายหน่วยงาน', [['unit_name', 'หน่วยงาน/งาน', 34], ['members', 'จำนวนคน', 10], ...counts], rep.units || []);
   sheet(wb, 'รายวัน', [['day', 'วันที่', 12], ...counts], rep.trend);
+  if (rep.missing) {
+    const MISS = { absent: 'ขาด', pending: 'รอตรวจสอบ', not_checked: 'ยังไม่เช็ก' };
+    sheet(wb, 'ผู้ไม่เข้าแถว', [['day', 'วันที่', 12], ['employee_code', 'รหัส', 10], ['full_name', 'ชื่อ-สกุล', 30], ['department_name', 'แผนก', 28], ['status', 'สถานะ', 14]],
+      rep.missing.map((m) => ({ ...m, status: MISS[m.status] || m.status })));
+  }
 }
 
 async function summaryWorkbook(rep) {

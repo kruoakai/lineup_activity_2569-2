@@ -427,6 +427,132 @@ async function exportWorkbook() {
   return { wb, count: rows.length };
 }
 
+// ---------- งานบุคลากร: แก้ ชื่อ-สกุล / ตำแหน่ง / ประเภทบุคลากร ของคนที่มีอยู่แล้ว ----------
+// ไม่สร้างคนใหม่ ไม่เปลี่ยนแผนก บทบาท สถานะบัญชี (เป็นหน้าที่ผู้ดูแลระบบ) และไม่แตะบัญชีผู้ดูแลระบบ
+const HR_FIELDS = { full_name: 'ชื่อ-สกุล', position_title: 'ตำแหน่ง', staff_type: 'ประเภทบุคลากร' };
+const HR_COLUMNS = COLUMNS.filter((c) => ['employee_code', 'full_name', 'position_title', 'staff_type'].includes(c.key));
+
+/** ตรวจค่าที่งานบุคลากรแก้ได้ (ใช้ทั้งแก้ทีละคนและนำเข้า Excel) — ช่องที่ไม่ส่งมา/ว่าง = ไม่เปลี่ยน */
+function hrFields(raw, { allowClear = false } = {}) {
+  const out = {};
+  const errors = [];
+  if (raw.full_name !== undefined) {
+    const v = clean(raw.full_name);
+    if (v.length > 190) errors.push('ชื่อ-สกุลยาวเกิน 190 ตัวอักษร');
+    else if (v) out.full_name = v;
+    else if (allowClear) errors.push('ต้องมีชื่อ-สกุล');
+  }
+  if (raw.position_title !== undefined) {
+    const v = clean(raw.position_title).slice(0, 150);
+    if (v || allowClear) out.position_title = v;
+  }
+  if (raw.staff_type !== undefined) {
+    const s = clean(raw.staff_type);
+    const st = staffTypes.parse(s);
+    if (st === null) errors.push(`ประเภทบุคลากร "${s}" ไม่ถูกต้อง (ดูชีต วิธีกรอก)`);
+    else if (st) out.staff_type = st;
+    else if (allowClear) out.staff_type = null;
+  }
+  return { fields: out, errors };
+}
+
+async function hrPlan(rawRows) {
+  if (!Array.isArray(rawRows) || !rawRows.length) throw new HttpError(400, 'ไม่มีข้อมูลในไฟล์');
+  const users = await db.query("SELECT id, employee_code, full_name, position_title, staff_type, role, active FROM users");
+  const byCode = new Map(users.map((u) => [u.employee_code.toLowerCase(), u]));
+  const seen = new Map();
+  const rows = rawRows.map((raw, i) => {
+    const line = raw._line || i + 1;
+    const code = clean(typeof raw.employee_code === 'number' ? String(raw.employee_code) : raw.employee_code);
+    const { fields, errors } = hrFields(raw);
+    const u = byCode.get(code.toLowerCase());
+    if (!code) errors.push('ไม่มีรหัสพนักงาน');
+    else if (seen.has(code.toLowerCase())) errors.push(`รหัสพนักงานซ้ำกับแถว ${seen.get(code.toLowerCase())}`);
+    else if (!u) errors.push('ไม่พบรหัสพนักงานนี้ในระบบ (เพิ่มคนใหม่ได้ที่ผู้ดูแลระบบ)');
+    else if (u.role === 'admin') errors.push('บัญชีผู้ดูแลระบบ แก้ที่หน้าผู้ดูแลระบบ');
+    if (code) seen.set(code.toLowerCase(), line);
+    const base = { line, employee_code: code, full_name: fields.full_name || u?.full_name || clean(raw.full_name) };
+    if (errors.length) return { ...base, action: 'error', errors };
+    const changes = {};
+    for (const [k, v] of Object.entries(fields)) if ((u[k] ?? '') !== (v ?? '')) changes[k] = { from: u[k] ?? '', to: v };
+    return { ...base, id: u.id, active: !!u.active, action: Object.keys(changes).length ? 'update' : 'same', changes };
+  });
+  const count = (a) => rows.filter((r) => r.action === a).length;
+  return { summary: { rows: rows.length, update: count('update'), same: count('same'), error: count('error') }, rows };
+}
+
+async function hrApply(p) {
+  await db.transaction(async (t) => {
+    for (const r of p.rows) {
+      if (r.action !== 'update') continue;
+      const set = Object.fromEntries(Object.entries(r.changes).map(([k, c]) => [k, c.to]));
+      if (set.staff_type !== undefined) set.staff_type_demo = 0;
+      await t.query('UPDATE users SET ? WHERE id = ?', [set, r.id]);
+    }
+  });
+  return p.summary;
+}
+
+function hrGuide(wb, withData) {
+  const g = wb.addWorksheet('วิธีกรอก');
+  g.columns = [{ width: 22 }, { width: 90 }];
+  [
+    ['แก้ไขชื่อ-สกุล / ตำแหน่ง / ประเภทบุคลากร — งานบุคลากร', ''],
+    ['', ''],
+    ['คอลัมน์', 'วิธีกรอก'],
+    ['รหัสพนักงาน*', 'จำเป็น · ใช้จับคู่กับคนในระบบ ห้ามแก้ (ถ้าไม่พบ แถวนั้นจะถูกข้าม)'],
+    ['ชื่อ-สกุล', 'พิมพ์ชื่อที่ถูกต้อง เช่น นางสาวสมหญิง ใจดี · เว้นว่าง = คงเดิม'],
+    ['ตำแหน่ง', 'เช่น ครู, ครูชำนาญการพิเศษ, รองผู้อำนวยการ (แสดงในเอกสาร) · เว้นว่าง = คงเดิม'],
+    ['ประเภทบุคลากร', `เลือก: ${staffTypes.STAFF_TYPES.map((t) => t.short).join(' / ')} · เว้นว่าง = คงเดิม`],
+    ['แผนก/งาน', 'อ่านอย่างเดียว (แก้ไม่มีผล) — ย้ายแผนกแจ้งผู้ดูแลระบบ'],
+    ['', ''],
+    ['ขั้นตอน', withData ? 'แก้ในไฟล์นี้ได้เลย → บันทึก → หน้างานบุคลากร แท็บข้อมูลบุคลากร → นำเข้า → ตรวจผล → บันทึก'
+      : 'กรอกเฉพาะคนที่ต้องแก้ (ไม่ต้องครบทุกคน) → หน้างานบุคลากร แท็บข้อมูลบุคลากร → นำเข้า → ตรวจผล → บันทึก'],
+    ['แถวตัวอย่าง', 'แถวที่รหัสขึ้นต้นด้วย "ตัวอย่าง" จะถูกข้าม'],
+  ].forEach((l) => g.addRow(l));
+  g.getRow(1).font = { bold: true, size: 14, color: { argb: 'FF1D4E89' } };
+  g.getRow(3).font = { bold: true };
+  g.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
+}
+
+async function hrWorkbook(withData) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'ระบบเช็กชื่อเข้าแถว';
+  const ws = wb.addWorksheet('รายชื่อบุคลากร', { views: [{ state: 'frozen', ySplit: 1 }] });
+  ws.columns = [
+    ...HR_COLUMNS.map((c) => ({ key: c.key, header: c.key === 'full_name' ? 'ชื่อ-สกุล' : c.header, width: c.width })),
+    { key: 'department', header: 'แผนก/งาน (อ่านอย่างเดียว)', width: 32 },
+  ];
+  const head = ws.getRow(1);
+  head.height = 24;
+  head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  ws.columns.forEach((_, i) => {
+    head.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i === 0 ? 'FF1D4E89' : i === 4 ? 'FF8A94A3' : 'FF4F7CB5' } };
+  });
+  let n = 0;
+  if (withData) {
+    const rows = await db.query(
+      `SELECT u.employee_code, u.full_name, u.position_title, u.staff_type, d.name AS department
+         FROM users u LEFT JOIN departments d ON d.id = u.department_id
+        WHERE u.active = 1 AND u.role <> 'admin' ORDER BY d.name, u.full_name`);
+    for (const r of rows) {
+      ws.addRow({ ...r, position_title: r.position_title || '', staff_type: staffTypes.BY_CODE.get(r.staff_type)?.short || '', department: r.department || '' });
+    }
+    n = rows.length;
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 5 } };
+  } else {
+    const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', full_name: 'นางสาวสมหญิง ใจดี', position_title: 'ครูชำนาญการ', staff_type: 'ขรก.ครู', department: '' });
+    ex.font = { italic: true, color: { argb: 'FF8A94A3' } };
+  }
+  const last = Math.max(n + 1, 300);
+  for (let r = 2; r <= last; r += 1) {
+    ws.getCell(`A${r}`).numFmt = '@';
+    ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${staffTypes.STAFF_TYPES.map((t) => t.short).join(',')}"`], showErrorMessage: false };
+  }
+  hrGuide(wb, withData);
+  return { wb, count: n };
+}
+
 /** ข้อมูลผู้ใช้สำหรับ API (ไม่มีข้อมูลรหัสผ่าน) */
 function publicUser(u) {
   return {
@@ -436,4 +562,7 @@ function publicUser(u) {
   };
 }
 
-module.exports = { COLUMNS, ROLE_TH, MAX_ROWS, normalizeRow, parseWorkbook, plan, apply, templateWorkbook, exportWorkbook, publicUser };
+module.exports = {
+  COLUMNS, ROLE_TH, MAX_ROWS, normalizeRow, parseWorkbook, plan, apply, templateWorkbook, exportWorkbook, publicUser,
+  HR_FIELDS, hrFields, hrPlan, hrApply, hrWorkbook,
+};

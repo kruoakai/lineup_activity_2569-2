@@ -40,6 +40,20 @@
     <template v-if="rep">
       <p class="small muted">วันเข้าแถว {{ rep.days }} วัน · บุคลากรที่ต้องเข้าแถว {{ rep.total.members }} คน
         <template v-if="rep.total.flagged"> · ติดธงตรวจสอบ {{ rep.total.flagged }} รายการ</template></p>
+      <!-- ใครไม่เข้าแถว — เห็นทันทีไม่ต้องเลื่อนหาในตารางรายบุคคล -->
+      <section v-if="rep.days" class="card missing" :class="{ clear: !missingPeople.length }">
+        <h3 style="margin:0 0 4px">
+          <template v-if="!missingPeople.length">✓ เข้าแถวครบทุกคน</template>
+          <template v-else>{{ rep.total.absent || rep.total.pending ? '⚠ ผู้ไม่เข้าแถว' : '⏳ ยังไม่เช็กชื่อ' }} {{ missingPeople.length }} คน</template>
+        </h3>
+        <p v-if="missingPeople.length" class="small muted" style="margin:0 0 8px">
+          {{ rep.days > 1 ? 'เรียงจากไม่เข้าแถวมากไปน้อย · ตัวเลข = จำนวนครั้ง' : 'ขาด / รอตรวจสอบ / ยังไม่เช็ก' }} (ไม่นับลา ราชการ งานนโยบาย) · รายชื่ออยู่ในชีต “ผู้ไม่เข้าแถว” ของไฟล์ Excel ด้วย</p>
+        <div class="mchips">
+          <span v-for="u in missingPeople" :key="u.user_id" class="mchip" :class="{ pend: !u.absent }" :title="`${u.department_name} · ขาด ${u.absent} · รอตรวจสอบ ${u.pending} · ยังไม่เช็ก ${u.not_checked}`">
+            {{ u.full_name }}<small> · {{ missLabel(u) }}</small></span>
+        </div>
+      </section>
+
       <div class="stats">
         <div class="stat"><b>{{ rep.total.rate ?? '–' }}<small v-if="rep.total.rate !== null">%</small></b><span>อัตราเข้าแถว</span></div>
         <div class="stat"><b style="color:var(--ok)">{{ rep.total.present }}</b><span>มาเข้าแถว</span></div>
@@ -173,6 +187,15 @@ const sortedUsers = computed(() => {
   return u;
 });
 
+// ผู้ไม่เข้าแถว = ขาด + รอตรวจสอบ + ยังไม่เช็ก (ลา ราชการ งานนโยบาย ไม่นับ)
+const misses = (u) => u.absent + u.pending + u.not_checked;
+const missingPeople = computed(() => (rep.value?.users || []).filter((u) => misses(u) > 0)
+  .sort((a, b) => misses(b) - misses(a) || a.department_name.localeCompare(b.department_name, 'th') || a.full_name.localeCompare(b.full_name, 'th')));
+function missLabel(u) {
+  if (rep.value.days > 1) return `${misses(u)} ครั้ง`;
+  return u.absent ? u.department_name : u.pending ? 'รอตรวจสอบ' : 'ยังไม่เช็ก';
+}
+
 function monthRange(day) {
   const [y, m] = day.split('-').map(Number);
   const first = `${y}-${String(m).padStart(2, '0')}-01`;
@@ -305,6 +328,14 @@ onBeforeUnmount(() => charts.forEach((c) => c.destroy()));
 .r-mid { color: var(--warn); }
 .r-low { color: var(--bad); }
 .total-row td { border-top: 2px solid var(--line); }
+.missing { border-left: 4px solid var(--bad); }
+.missing.clear { border-left-color: var(--ok); }
+.missing.clear h3 { color: var(--ok); }
+.mchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mchip { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--bad); background: var(--bad-bg); color: var(--bad); font-size: .86rem; font-weight: 600; }
+.mchip.pend { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.mchip small { font-weight: 400; }
+@media print { .mchip { background: none; } }
 .charts { display: grid; gap: 14px; grid-template-columns: 1fr; }
 @media (min-width: 760px) { .charts { grid-template-columns: 1fr 1.4fr; } }
 .charts .card { margin-bottom: 0; }
