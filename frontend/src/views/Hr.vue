@@ -1,5 +1,27 @@
 <template>
-  <div>
+  <div class="hrpage">
+    <!-- แผ่นพิมพ์รายชื่อ (แสดงเฉพาะตอนพิมพ์) -->
+    <section v-if="printOut" class="print-sheet" aria-hidden="true">
+      <template v-for="(pg, pi) in printOut.pages" :key="pi">
+        <div class="ps-page" :class="{ brk: pi > 0 }">
+          <h2 class="ps-title">รายชื่อบุคลากร{{ pg.dept ? ` · ${pg.dept}` : '' }}</h2>
+          <p class="ps-sub">{{ thaiDate(day) }} · พิมพ์เมื่อ {{ printOut.at }}{{ printOut.open ? ' (ช่วงเปิดเช็กชื่อ — ข้อมูล ณ เวลาที่พิมพ์)' : '' }}</p>
+          <template v-for="(c, ci) in pg.cats" :key="c.k">
+            <h3 class="ps-cat">{{ ci + 1 }}. {{ c.label }} <span>{{ c.rows.length }} คน</span></h3>
+            <table v-if="c.rows.length" class="ps-tbl">
+              <thead><tr><th class="n">ที่</th><th>ชื่อ-สกุล</th><th v-if="!pg.dept">แผนก/งาน</th><th>{{ c.k === 'missing' ? 'สถานะ' : 'หมายเหตุ' }}</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, ri) in c.rows" :key="r.id">
+                  <td class="n">{{ ri + 1 }}</td><td>{{ r.full_name }}</td><td v-if="!pg.dept">{{ r.department || '-' }}</td><td>{{ r.note }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else class="ps-none">- ไม่มี -</p>
+          </template>
+        </div>
+      </template>
+    </section>
+
     <h1>งานบุคลากรประจำวัน</h1>
     <div v-if="fixDoc" class="alert warn fixbar">
       <b>✏️ กำลังแก้ไขเอกสารเลขที่ {{ fixDoc.id }}</b>{{ fixDoc.status === 'returned' ? ' (ถูกส่งกลับแก้ไข)' : '' }}
@@ -23,6 +45,7 @@
       <span :class="view.isWorkDay ? 'okc' : 'badc'">{{ view.isWorkDay ? 'วันทำงาน' : 'วันหยุด' }}</span>
       <template v-if="view.isWorkDay"> · {{ view.isAssemblyDay ? 'มีกิจกรรมหน้าเสาธง' : 'งดกิจกรรมหน้าเสาธง' }}</template>
       <template v-if="view.dayNote"> · {{ view.dayNote }}</template>
+      · <button type="button" class="linkbtn" @click="openPrint">🖨 พิมพ์รายชื่อ</button>
     </p>
 
     <div v-if="error" class="alert bad" style="white-space:pre-line">{{ error }}</div>
@@ -46,6 +69,7 @@
         </h3>
         <span class="small muted">{{ missingDone ? 'ขาด / รอตรวจสอบ (ไม่นับคนที่ลา ราชการ งานนโยบาย)' : 'ช่วงเปิดเช็กชื่อ — กดโหลดใหม่เพื่ออัปเดต' }}</span>
         <button v-if="!missingDone" type="button" class="btn sm" :disabled="busy" @click="load">↻ โหลดใหม่</button>
+        <button type="button" class="btn sm" @click="openPrint">🖨 พิมพ์</button>
       </div>
       <div v-if="missing.length" class="mgroups">
         <div v-for="g in missingByDept" :key="g.dept" class="mg">
@@ -170,6 +194,21 @@
       </section>
     </template>
 
+    <!-- เลือกหมวดที่จะพิมพ์ -->
+    <div v-if="printSheet" class="modal-back" @click.self="printSheet = false">
+      <div class="modal stack" role="dialog" aria-modal="true" aria-label="พิมพ์รายชื่อ">
+        <div class="ab-head"><b>🖨 พิมพ์รายชื่อ · {{ thaiDate(day) }}</b><button type="button" class="btn sm" @click="printSheet = false">ปิด</button></div>
+        <p class="small muted" style="margin:0">เลือกหมวดที่ต้องการพิมพ์ (ใช้ข้อมูลที่แสดงอยู่ตอนนี้{{ marksDirty ? ' รวมมาสายที่ยังไม่ได้บันทึก' : '' }})</p>
+        <label v-for="c in PRINT_CATS" :key="c.k" class="chk pc">
+          <input v-model="printPick" type="checkbox" :value="c.k" :disabled="!catRows(c.k).length && c.k !== 'missing'" />
+          <span class="grow">{{ catLabel(c.k) }}</span><b>{{ catRows(c.k).length }} คน</b>
+        </label>
+        <label class="chk pc opt"><input v-model="printByDept" type="checkbox" />
+          <span class="grow">แยกตามแผนก/งาน — ขึ้นหน้าใหม่ทุกแผนก (ตัดแจกแต่ละแผนกได้)</span></label>
+        <button type="button" class="btn primary block" :disabled="!printPick.length" @click="doPrint">🖨 พิมพ์ {{ printPick.length }} หมวด</button>
+      </div>
+    </div>
+
     <!-- แก้ไขข้อมูลบุคลากรทีละคน -->
     <div v-if="edit" class="modal-back" @click.self="edit = null">
       <form class="modal stack" role="dialog" aria-modal="true" aria-label="แก้ไขข้อมูลบุคลากร" @submit.prevent="saveEdit">
@@ -222,11 +261,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, download } from '../api';
 import { askPassword } from '../confirm';
-import { STATUS, statusLabel, thaiDate, serverToday, addDays } from '../util';
+import { STATUS, statusLabel, thaiDate, thaiTime, serverToday, addDays, LEAVE_TYPE } from '../util';
 
 const router = useRouter();
 const route = useRoute();
@@ -376,6 +415,45 @@ function saveMarks() {
     preview.value = null;
     message.value = `บันทึกแล้ว: มาสาย ${marks.value.late.length} คน · ไม่ลงเวลากลับ ${marks.value.no_signout.length} คน`;
   });
+}
+
+// ---------- พิมพ์รายชื่อ (ไม่เข้าแถว มาสาย ลา ฯลฯ) ----------
+const PRINT_CATS = [
+  { k: 'missing' }, { k: 'late', label: 'มาสาย' }, { k: 'no_signout', label: 'ไม่ลงเวลากลับ' },
+  { k: 'leave', label: 'ลา' }, { k: 'official', label: 'ไปราชการ' }, { k: 'policy', label: 'ไปปฏิบัติงานตามนโยบาย' },
+];
+const printSheet = ref(false);
+const printPick = ref(['missing']);
+const printByDept = ref(false);
+const printOut = ref(null);
+const catLabel = (k) => (k === 'missing' ? (missingDone.value ? 'ไม่เข้าแถว (ขาด / รอตรวจสอบ)' : 'ยังไม่เช็กชื่อ') : PRINT_CATS.find((c) => c.k === k).label);
+const byDeptName = (a, b) => (a.department || '').localeCompare(b.department || '', 'th') || a.full_name.localeCompare(b.full_name, 'th');
+function catRows(k) {
+  const ps = people.value;
+  let list;
+  if (k === 'missing') list = missing.value.map((p) => ({ ...p, note: p.status === 'pending' ? 'รอตรวจสอบ' : missingDone.value ? 'ขาด' : 'ยังไม่เช็ก' }));
+  else if (k === 'late' || k === 'no_signout') list = ps.filter((p) => marks.value[k].includes(p.id)).map((p) => ({ ...p, note: '' }));
+  else if (k === 'leave') list = ps.filter((p) => p.status === 'leave').map((p) => ({ ...p, note: [LEAVE_TYPE[p.leave_type] || 'ลา', p.note].filter(Boolean).join(' · ') }));
+  else list = ps.filter((p) => p.status === k).map((p) => ({ ...p, note: p.note || '' }));
+  return list.sort(byDeptName);
+}
+function openPrint() {
+  printPick.value = PRINT_CATS.map((c) => c.k).filter((k) => printPick.value.includes(k) && (k === 'missing' || catRows(k).length));
+  if (!printPick.value.length) printPick.value = ['missing'];
+  printSheet.value = true;
+}
+async function doPrint() {
+  const cats = PRINT_CATS.filter((c) => printPick.value.includes(c.k)).map((c) => ({ k: c.k, label: catLabel(c.k), rows: catRows(c.k) }));
+  let pages = [{ dept: '', cats }];
+  if (printByDept.value) {
+    const depts = [...new Set(cats.flatMap((c) => c.rows.map((r) => r.department || 'ไม่ระบุแผนก')))].sort((a, b) => a.localeCompare(b, 'th'));
+    pages = depts.map((d) => ({ dept: d, cats: cats.map((c) => ({ ...c, rows: c.rows.filter((r) => (r.department || 'ไม่ระบุแผนก') === d) })) }));
+    if (!pages.length) pages = [{ dept: '', cats }];
+  }
+  printOut.value = { pages, at: thaiTime(new Date().toISOString()), open: !missingDone.value && printPick.value.includes('missing') };
+  printSheet.value = false;
+  await nextTick();
+  window.print();
 }
 
 // ---------- แก้ไขข้อมูลบุคลากร ----------
@@ -544,6 +622,27 @@ onMounted(async () => {
 .chk { display: flex; gap: 8px; align-items: center; font-size: .9rem; margin-bottom: 6px; }
 .report { border-left: 4px solid var(--fill); }
 .xl { border-left: 4px solid var(--info); }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--brand-2); font-weight: 600; cursor: pointer; text-decoration: underline; }
+.pc { padding: 8px 4px; border-bottom: 1px solid var(--line); margin: 0; }
+.pc.opt { border-bottom: 0; }
+.pc input { width: 20px; height: 20px; min-height: 20px; flex: none; }
+/* แผ่นพิมพ์: ซ่อนบนจอ แสดงเฉพาะตอนพิมพ์ */
+.print-sheet { display: none; }
+@media print {
+  .hrpage > :not(.print-sheet) { display: none !important; }
+  .print-sheet { display: block; color: #000; font-size: 14px; }
+  .ps-page.brk { break-before: page; }
+  .ps-title { margin: 0; font-size: 18px; }
+  .ps-sub { margin: 2px 0 10px; font-size: 12px; }
+  .ps-cat { margin: 14px 0 4px; font-size: 15px; }
+  .ps-cat span { font-weight: 400; }
+  .ps-tbl { width: 100%; border-collapse: collapse; }
+  .ps-tbl th, .ps-tbl td { border: 1px solid #999; padding: 3px 6px; text-align: left; vertical-align: top; }
+  .ps-tbl th { background: #eee; color: #000; }
+  .ps-tbl .n { width: 32px; text-align: center; }
+  .ps-tbl tr { break-inside: avoid; }
+  .ps-none { margin: 0; }
+}
 .xlways { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
 .xw { display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
 .xw .btn { margin-top: auto; align-self: flex-start; }
