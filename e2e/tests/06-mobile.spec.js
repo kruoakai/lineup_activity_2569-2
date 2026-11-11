@@ -32,9 +32,9 @@ for (const [code, paths] of [
 test('เมนูเพิ่มเติมเป็นปุ่ม ไม่มีขีดเส้นใต้', async ({ page }) => {
   await login(page, 'AD');
   await page.goto('/more');
-  await expect(page.locator('.tile', { hasText: 'ตั้งค่าการเช็กชื่อ' })).toBeVisible();
+  await expect(page.locator('.tile', { hasText: 'ตั้งค่าระบบ' })).toBeVisible();
   const deco = await page.locator('.tile').first().evaluate((el) => getComputedStyle(el).textDecorationLine);
   expect(deco).toBe('none');
-  await page.locator('.tile', { hasText: 'ตั้งค่าการเช็กชื่อ' }).click();
+  await page.locator('.tile', { hasText: 'ตั้งค่าระบบ' }).click();
   await expect(page).toHaveURL(/\/admin\/settings/);
 });

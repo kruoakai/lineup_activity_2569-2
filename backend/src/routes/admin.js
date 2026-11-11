@@ -93,6 +93,21 @@ router.get('/settings', async (_req, res) => {
   res.json(await settings.getAll());
 });
 
+// น้องแถวดี (AI ผู้ช่วย): วางคีย์ OpenRouter / เลือกโมเดล / เปิด-ปิด / ทดสอบ
+const assistant = require('../services/assistant');
+router.get('/assistant', async (_req, res) => {
+  res.json(await assistant.adminView());
+});
+router.put('/assistant', async (req, res) => {
+  const b = req.body || {};
+  const out = await assistant.adminSave(req.user, b);
+  await log(req, 'assistant.update', '', { key: b.key ? `…${String(b.key).trim().slice(-4)}` : b.clearKey ? 'cleared' : 'unchanged', model: b.model, switchedOn: b.switchedOn });
+  res.json(out);
+});
+router.post('/assistant/test', async (req, res) => {
+  res.json(await assistant.adminTest(req.user));
+});
+
 router.put('/settings', async (req, res) => {
   const updated = await settings.update(req.body || {});
   if (Object.keys(req.body || {}).some((k) => k.startsWith('sign_step'))) await require('../services/official').syncSigners();

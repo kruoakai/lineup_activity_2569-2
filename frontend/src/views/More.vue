@@ -87,7 +87,8 @@ const groups = computed(() => {
       items: [
         { to: '/admin/users', icon: '👤', color: 'blue', label: 'ผู้ใช้และสิทธิ์', sub: 'บทบาท ตัวแทน รีเซ็ตรหัส' },
         { to: '/admin/user-data', icon: '📤', color: 'teal', label: 'นำเข้า/ส่งออกผู้ใช้ และ API', sub: 'Excel แม่แบบ · เชื่อมต่อระบบภายนอก' },
-        { to: '/admin/settings', icon: '⚙️', color: 'slate', label: 'ตั้งค่าการเช็กชื่อ', sub: 'เวลา พื้นที่ (แผนที่) วิธีเช็กชื่อ' },
+        { to: '/admin/settings', icon: '⚙️', color: 'slate', label: 'ตั้งค่าระบบ', sub: 'เวลา พื้นที่ วิธีเช็กชื่อ · น้องแถวดี (AI)' },
+        { to: '/admin/settings#assistant', icon: '🤖', color: 'pink', label: 'น้องแถวดี (AI ผู้ช่วย)', sub: 'วางคีย์ OpenRouter · ทดสอบ · เปิด/ปิด' },
         { to: '/admin/report-setup', icon: '🖋', color: 'indigo', label: 'แบบรายงานและผู้ลงนาม', sub: 'ผู้ลงนาม และอีเมล' },
         { to: '/admin/data', icon: '🎲', color: 'amber', label: 'ข้อมูลจำลอง', sub: 'ทดลอง / เริ่มใช้งานจริง' },
         { to: '/admin/backups', icon: '💾', color: 'teal', label: 'สำรองและกู้คืนระบบ', sub: 'สำรองทั้งระบบ · กู้คืนเมื่อเซิร์ฟเวอร์มีปัญหา' },
@@ -121,8 +122,8 @@ onMounted(async () => {
 .tile:hover, .tile:focus-visible { border-color: var(--brand-2); box-shadow: 0 6px 18px rgba(29, 78, 137, .14); outline: none; }
 .tile:active { transform: scale(.98); }
 .ti { position: relative; flex: none; width: 44px; height: 44px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
-.ti.blue { background: #e3eefb; } .ti.amber { background: #fdf1d8; } .ti.teal { background: #dcf5ec; } .ti.indigo { background: #e8e6fb; } .ti.slate { background: #e7ebf0; }
-@media (prefers-color-scheme: dark) { .ti.blue, .ti.amber, .ti.teal, .ti.indigo, .ti.slate { background: rgba(255, 255, 255, .08); } }
+.ti.blue { background: #e3eefb; } .ti.amber { background: #fdf1d8; } .ti.teal { background: #dcf5ec; } .ti.indigo { background: #e8e6fb; } .ti.slate { background: #e7ebf0; } .ti.pink { background: #ffe4ee; }
+@media (prefers-color-scheme: dark) { .ti.blue, .ti.amber, .ti.teal, .ti.indigo, .ti.slate, .ti.pink { background: rgba(255, 255, 255, .08); } }
 .cnt { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--bad); color: #fff; font-size: .72rem; font-style: normal; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--card); }
 .tt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
 .tt b { font-size: 1rem; }

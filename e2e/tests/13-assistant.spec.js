@@ -84,3 +84,30 @@ test('มือถือ: ปุ่มไม่บังเมนูล่าง
   if (SHOT) await page.screenshot({ path: `${SHOT}/ntd-mobile.png` });
   await ctx.close();
 });
+
+test('ผู้ดูแลวางคีย์ที่หน้าตั้งค่าระบบ → ปุ่มน้องแถวดีขึ้น → ลบคีย์แล้วหายไป', async ({ page }) => {
+  const { confirmPassword } = require('./helpers');
+  await login(page, 'AD');
+  await page.goto('/more');
+  await page.locator('.tile', { hasText: 'น้องแถวดี (AI ผู้ช่วย)' }).click();
+  const sec = page.locator('#assistant');
+  await expect(sec).toContainText('ยังไม่ได้ใส่คีย์');
+  await sec.locator('input[type=password]').fill('sk-or-v1-e2etestkey0000000000000000000000TEST');
+  await sec.locator('select').selectOption('anthropic/claude-haiku-5.5');
+  await sec.getByRole('button', { name: /บันทึก/ }).click();
+  await confirmPassword(page);
+  await expect(sec).toContainText('เปิดใช้งานอยู่');
+  await expect(sec).toContainText('…TEST');
+  await expect(sec.locator('input[type=password]')).toHaveValue('');
+  if (SHOT) await page.screenshot({ path: `${SHOT}/ntd-settings.png`, fullPage: true });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'ถามน้องแถวดี' })).toBeVisible();
+  await page.goto('/admin/settings#assistant');
+  page.once('dialog', (d) => d.accept());
+  await page.locator('#assistant').getByRole('button', { name: 'ลบคีย์' }).click();
+  await confirmPassword(page);
+  await expect(page.locator('#assistant')).toContainText('ยังไม่ได้ใส่คีย์');
+  await page.goto('/');
+  await expect(page.locator('.hero')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ถามน้องแถวดี' })).toHaveCount(0);
+});

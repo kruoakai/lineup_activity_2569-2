@@ -21,7 +21,8 @@ beforeAll(async () => {
   const d = await h.createDept('แผนกทดสอบ');
   await h.createUser({ code: 'T1', name: 'ครูทดสอบ', dept: d });
   await h.createUser({ code: 'T2', name: 'ครูอีกคน', dept: d });
-  tok = { T1: await h.login('T1'), T2: await h.login('T2') };
+  await h.createUser({ code: 'ADM', name: 'ผู้ดูแล', role: 'admin', mustAssemble: false });
+  tok = { T1: await h.login('T1'), T2: await h.login('T2'), ADM: await h.login('ADM') };
   realFetch = global.fetch;
 });
 
@@ -30,6 +31,7 @@ beforeEach(() => {
   assistant.resetQuota();
   process.env.OPENROUTER_API_KEY = 'test-key';
   delete process.env.OPENROUTER_MODEL;
+  assistant.invalidate();
 });
 
 afterAll(async () => {
@@ -106,5 +108,39 @@ describe('น้องแถวดี (AI ผู้ช่วย)', () => {
     const r = await api(tok.T2).post('/api/assistant/chat').send({ messages: [{ role: 'user', content: 'อีกข้อ' }] });
     expect(r.status).toBe(429);
     expect(r.body.code).toBe('ASSISTANT_QUOTA');
+  });
+
+  test('ผู้ดูแลวางคีย์ในหน้าตั้งค่า: เข้ารหัสในฐานข้อมูล เห็นแค่ 4 ตัวท้าย ทดสอบ/เปลี่ยนโมเดล/ปิดได้', async () => {
+    delete process.env.OPENROUTER_API_KEY;
+    assistant.invalidate();
+    const KEY = 'sk-or-v1-0123456789abcdef0123456789abcdefWXYZ';
+    let v = (await api(tok.ADM).get('/api/admin/assistant').expect(200)).body;
+    expect(v).toMatchObject({ enabled: false, hasKey: false, source: '' });
+    expect(v.models.map((m) => m.id)).toContain('anthropic/claude-haiku-5.5');
+    // ครูทั่วไปตั้งไม่ได้ · ต้องยืนยันรหัสผ่าน · คีย์ผิดรูปแบบถูกปฏิเสธ
+    await api(tok.T1).put('/api/admin/assistant').send({ password: h.PASSWORD, key: KEY }).expect(403);
+    await api(tok.ADM).put('/api/admin/assistant').send({ key: KEY }).expect(400);
+    await api(tok.ADM).put('/api/admin/assistant').send({ password: h.PASSWORD, key: 'abc' }).expect(400);
+    v = (await api(tok.ADM).put('/api/admin/assistant').send({ password: h.PASSWORD, key: `  ${KEY} `, model: 'anthropic/claude-haiku-5.5' }).expect(200)).body;
+    expect(v).toMatchObject({ enabled: true, hasKey: true, last4: 'WXYZ', source: 'settings', model: 'anthropic/claude-haiku-5.5' });
+    expect(JSON.stringify(v)).not.toContain('0123456789abcdef');
+    const [row] = await h.db.query("SELECT v FROM settings WHERE k = 'assistant_key_enc'");
+    expect(row.v).not.toContain('0123456789abcdef');
+    expect((await api(tok.T1).get('/api/assistant').expect(200)).body.enabled).toBe(true);
+    // ใช้คีย์ที่บันทึกไว้จริง
+    fakeFetch(() => ({ json: { choices: [{ message: { content: 'สวัสดีค่ะ น้องแถวดีค่ะ' } }] } }));
+    const t = (await api(tok.ADM).post('/api/admin/assistant/test').expect(200)).body;
+    expect(t).toMatchObject({ ok: true, reply: 'สวัสดีค่ะ น้องแถวดีค่ะ' });
+    expect(calls[0].init.headers.Authorization).toBe(`Bearer ${KEY}`);
+    expect(calls[0].body.model).toBe('anthropic/claude-haiku-5.5');
+    // ปิดผู้ช่วย → ครูไม่เห็นปุ่ม แต่ผู้ดูแลยังทดสอบได้
+    v = (await api(tok.ADM).put('/api/admin/assistant').send({ password: h.PASSWORD, switchedOn: false }).expect(200)).body;
+    expect(v).toMatchObject({ enabled: false, switchedOn: false, hasKey: true });
+    expect((await api(tok.T1).get('/api/assistant')).body.enabled).toBe(false);
+    await api(tok.T1).post('/api/assistant/chat').send({ messages: [{ role: 'user', content: 'ทดสอบ' }] }).expect(503);
+    await api(tok.ADM).post('/api/admin/assistant/test').expect(200);
+    // ลบคีย์
+    v = (await api(tok.ADM).put('/api/admin/assistant').send({ password: h.PASSWORD, clearKey: true, switchedOn: true }).expect(200)).body;
+    expect(v).toMatchObject({ hasKey: false, enabled: false });
   });
 });

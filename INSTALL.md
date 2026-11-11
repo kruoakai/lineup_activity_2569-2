@@ -298,7 +298,7 @@ cd ../e2e && npm install && npm test
 
 ผู้ช่วยแชตเรียกโมเดล Claude ผ่าน OpenRouter ปุ่มน้องแถวดีจะแสดงเมื่อเซิร์ฟเวอร์มีคีย์เท่านั้น
 
-1. เพิ่มใน `deploy/.env` (ห้าม commit ไฟล์นี้):
+1. ง่ายที่สุด: ผู้ดูแลระบบเข้าเว็บ → ☰ → **น้องแถวดี (AI ผู้ช่วย)** วางคีย์ → บันทึก → ทดสอบ (คีย์เข้ารหัสในฐานข้อมูล) หรือเพิ่มใน `deploy/.env` (มีผลเหนือกว่า ห้าม commit):
    ```
    OPENROUTER_API_KEY=sk-or-v1-...
    OPENROUTER_MODEL=anthropic/claude-opus-5.5   # ประหยัดกว่า: anthropic/claude-haiku-5.5

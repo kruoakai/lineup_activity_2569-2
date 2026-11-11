@@ -6,8 +6,8 @@ const { authenticate, requireReady } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate, requireReady);
 
-router.get('/', (_req, res) => {
-  res.json(assistant.status());
+router.get('/', async (_req, res) => {
+  res.json(await assistant.status());
 });
 
 router.post('/chat', async (req, res) => {

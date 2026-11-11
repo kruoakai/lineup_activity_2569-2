@@ -1,7 +1,12 @@
 // น้องแถวดี — ผู้ช่วยตอบคำถามการใช้งานเว็บแอป (เรียกโมเดล Claude ผ่าน OpenRouter)
-// คีย์อยู่ที่ environment เท่านั้น: OPENROUTER_API_KEY (ห้ามเก็บในโค้ดหรือฐานข้อมูล) · OPENROUTER_MODEL เปลี่ยนโมเดลได้
+// คีย์: ผู้ดูแลวางที่หน้า "ตั้งค่าระบบ → น้องแถวดี" (เข้ารหัส AES-256-GCM ก่อนเก็บในตาราง settings)
+//       หรือ environment OPENROUTER_API_KEY (มีผลเหนือกว่า) · โมเดล: หน้าตั้งค่า หรือ OPENROUTER_MODEL
 // ส่งให้โมเดลเฉพาะ: คำถาม, ประวัติแชตล่าสุดของผู้ถาม, บทบาท และสถานะช่วงเวลาเช็กชื่อ/ผลของตนเองวันนี้ — ไม่ส่งข้อมูลของคนอื่น
+const crypto = require('crypto');
 const fs = require('fs');
+const db = require('../db');
+const config = require('../config');
+const { confirmPassword } = require('./confirm');
 const path = require('path');
 const schedule = require('./schedule');
 const attendance = require('./attendance');
@@ -36,12 +41,55 @@ const SYSTEM = `คุณคือ "น้องแถวดี" ผู้ช่
 ความรู้ของระบบ
 ${KNOWLEDGE}`;
 
-function enabled() {
-  return Boolean(process.env.OPENROUTER_API_KEY);
+const MODELS = [
+  { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5.5 — ตอบละเอียดที่สุด (แนะนำ)' },
+  { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5.5 — สมดุล ถูกกว่าครึ่งหนึ่ง' },
+  { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5 — ประหยัดที่สุด ตอบเร็ว' },
+];
+const MODEL_RE = /^[\w.-]+\/[\w.:-]+$/;
+
+// ---------- เก็บคีย์แบบเข้ารหัส ----------
+const cipherKey = () => crypto.createHash('sha256').update(`${config.jwtSecret}:assistant-key`).digest();
+function encrypt(plain) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', cipherKey(), iv);
+  const enc = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
+  return ['v1', iv.toString('base64'), c.getAuthTag().toString('base64'), enc.toString('base64')].join(':');
+}
+function decrypt(stored) {
+  try {
+    const [v, iv, tag, enc] = String(stored || '').split(':');
+    if (v !== 'v1') return '';
+    const d = crypto.createDecipheriv('aes-256-gcm', cipherKey(), Buffer.from(iv, 'base64'));
+    d.setAuthTag(Buffer.from(tag, 'base64'));
+    return Buffer.concat([d.update(Buffer.from(enc, 'base64')), d.final()]).toString('utf8');
+  } catch { return ''; } // เปลี่ยน JWT_SECRET แล้ว → ต้องวางคีย์ใหม่
 }
 
-function model() {
-  return process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+let cfgCache = null;
+let cfgAt = 0;
+async function loadConfig() {
+  if (cfgCache && Date.now() - cfgAt < 10_000) return cfgCache;
+  const rows = await db.query("SELECT k, v FROM settings WHERE k IN ('assistant_key_enc', 'assistant_key_last4', 'assistant_model', 'assistant_enabled')");
+  const s = Object.fromEntries(rows.map((r) => [r.k, r.v]));
+  const envKey = process.env.OPENROUTER_API_KEY || '';
+  const savedKey = s.assistant_key_enc ? decrypt(s.assistant_key_enc) : '';
+  cfgCache = {
+    key: envKey || savedKey,
+    source: envKey ? 'env' : savedKey ? 'settings' : '',
+    last4: envKey ? envKey.slice(-4) : savedKey ? (s.assistant_key_last4 || savedKey.slice(-4)) : '',
+    broken: Boolean(s.assistant_key_enc && !savedKey && !envKey),
+    model: s.assistant_model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+    switchedOn: s.assistant_enabled !== '0',
+  };
+  cfgAt = Date.now();
+  return cfgCache;
+}
+function invalidate() { cfgCache = null; }
+
+async function enabled() {
+  const c = await loadConfig();
+  return Boolean(c.key && c.switchedOn);
 }
 
 // จำกัดจำนวนคำถามต่อคน (ในหน่วยความจำ) กันค่าใช้จ่ายบานปลาย
@@ -82,11 +130,11 @@ async function contextFor(user) {
   ].join('\n');
 }
 
-async function callOpenRouter(body) {
+async function callOpenRouter(key, body) {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': (process.env.APP_URL || 'https://lineup.ccollege.ac.th').replace(/\/+$/, ''),
       'X-Title': 'Lineup Assistant',
@@ -98,24 +146,25 @@ async function callOpenRouter(body) {
   return { ok: res.ok, status: res.status, data };
 }
 
-async function chat(user, { messages }) {
-  if (!enabled()) throw new HttpError(503, 'น้องแถวดียังไม่พร้อมใช้งาน — ผู้ดูแลระบบยังไม่ได้ตั้งค่า', 'ASSISTANT_OFF');
+async function chat(user, { messages }, { force = false } = {}) {
+  const c = await loadConfig();
+  if (!c.key || (!c.switchedOn && !force)) throw new HttpError(503, 'น้องแถวดียังไม่พร้อมใช้งาน — ผู้ดูแลระบบยังไม่ได้ตั้งค่า', 'ASSISTANT_OFF');
   const msgs = cleanMessages(messages);
-  checkQuota(user.id);
+  if (!force) checkQuota(user.id);
   const ctx = await contextFor(user);
   const body = {
-    model: model(),
+    model: c.model,
     max_tokens: 1200,
     reasoning: { effort: 'low' }, // ตอบเร็ว คำถามการใช้งานไม่ต้องคิดลึก
     messages: [{ role: 'system', content: SYSTEM }, { role: 'system', content: ctx }, ...msgs],
   };
   let r;
   try {
-    r = await callOpenRouter(body);
+    r = await callOpenRouter(c.key, body);
     // บางโมเดลไม่รองรับ reasoning → ลองใหม่โดยไม่ส่ง
     if (!r.ok && r.status === 400) {
       delete body.reasoning;
-      r = await callOpenRouter(body);
+      r = await callOpenRouter(c.key, body);
     }
   } catch (e) {
     console.error('assistant fetch failed', e.message);
@@ -131,11 +180,47 @@ async function chat(user, { messages }) {
   const choice = r.data.choices?.[0];
   const text = String(choice?.message?.content || '').trim();
   if (!text) throw new HttpError(502, 'น้องแถวดีตอบไม่ได้ในตอนนี้ ลองถามใหม่อีกครั้งค่ะ');
-  return { reply: text, model: r.data.model || model() };
+  return { reply: text, model: r.data.model || c.model };
 }
 
-function status() {
-  return { enabled: enabled(), name: 'น้องแถวดี' };
+async function status() {
+  return { enabled: await enabled(), name: 'น้องแถวดี' };
 }
 
-module.exports = { chat, status, enabled, resetQuota, SYSTEM };
+// ---------- หน้าตั้งค่าของผู้ดูแลระบบ (ไม่ส่งคีย์เต็มกลับไปเด็ดขาด) ----------
+async function adminView() {
+  const c = await loadConfig();
+  return {
+    enabled: Boolean(c.key && c.switchedOn), switchedOn: c.switchedOn, hasKey: Boolean(c.key), last4: c.last4,
+    source: c.source, broken: c.broken, model: c.model, models: MODELS,
+  };
+}
+
+async function adminSave(user, { password, key, clearKey, model: m, switchedOn }) {
+  await confirmPassword(user.id, password);
+  const set = async (k, v) => db.query('INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)', [k, v]);
+  if (clearKey) {
+    await db.query("DELETE FROM settings WHERE k IN ('assistant_key_enc', 'assistant_key_last4')");
+  } else if (key !== undefined && String(key).trim()) {
+    const k = String(key).trim();
+    if (!/^sk-or-[\w-]{20,200}$/.test(k)) throw new HttpError(400, 'คีย์ไม่ถูกต้อง — คีย์ OpenRouter ขึ้นต้นด้วย sk-or-');
+    await set('assistant_key_enc', encrypt(k));
+    await set('assistant_key_last4', k.slice(-4));
+  }
+  if (m !== undefined) {
+    if (!MODEL_RE.test(String(m))) throw new HttpError(400, 'ชื่อโมเดลไม่ถูกต้อง');
+    await set('assistant_model', String(m));
+  }
+  if (switchedOn !== undefined) await set('assistant_enabled', switchedOn ? '1' : '0');
+  invalidate();
+  return adminView();
+}
+
+// ทดสอบจากหน้าตั้งค่า: ถาม 1 ข้อ (ไม่นับโควตา ใช้ได้แม้ปิดผู้ช่วยไว้)
+async function adminTest(user) {
+  const t0 = Date.now();
+  const r = await chat(user, { messages: [{ role: 'user', content: 'สวัสดีค่ะ แนะนำตัวสั้น ๆ 1 ประโยค' }] }, { force: true });
+  return { ok: true, reply: r.reply, model: r.model, ms: Date.now() - t0 };
+}
+
+module.exports = { chat, status, enabled, resetQuota, invalidate, adminView, adminSave, adminTest, SYSTEM };

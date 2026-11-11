@@ -91,6 +91,9 @@
 
       <button class="btn primary block" :disabled="busy">บันทึกการตั้งค่า</button>
     </form>
+
+    <!-- น้องแถวดี: บันทึกแยกจากฟอร์มด้านบน (ต้องยืนยันรหัสผ่าน) -->
+    <AssistantSettings v-if="s" style="margin-top:14px" />
   </div>
 </template>
 
@@ -99,6 +102,7 @@ import { onMounted, ref } from 'vue';
 import { api } from '../../api';
 import { thaiDate } from '../../util';
 import MapPicker from '../../components/MapPicker.vue';
+import AssistantSettings from '../../components/AssistantSettings.vue';
 
 const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 const s = ref(null);
