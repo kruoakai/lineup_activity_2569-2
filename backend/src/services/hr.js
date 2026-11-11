@@ -239,7 +239,7 @@ async function dailySummary(day) {
   } else {
     if (day === state.day && state.phase !== 'closed') {
       throw new HttpError(409, state.manual?.mode === 'open'
-        ? 'งานกิจกรรมสั่งเปิดการเช็กชื่อด้วยมืออยู่ — สร้างรายงานได้หลังสั่งปิดเช็กชื่อ'
+        ? `${state.manual.by || 'มีผู้'}สั่งเปิดการเช็กชื่อด้วยมืออยู่ — กด "สั่งปิดเช็กชื่อ" ก่อนจึงสร้างรายงานได้`
         : `ยังไม่ปิดการเช็กชื่อเข้าแถวของวันนี้ (ปิด ${state.closeTime} น.) — สร้างรายงานได้หลังปิดเช็กชื่อ`, 'NOT_CLOSED');
     }
     const notJoined = people.filter((p) => p.must_assemble && (!p.status || ['absent', 'pending'].includes(p.status))).sort(byType);

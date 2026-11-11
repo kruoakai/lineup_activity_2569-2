@@ -151,9 +151,9 @@ const phaseText = computed(() => {
   const s = state.value;
   if (!s) return '';
   return {
-    open: `${s.manual ? `เปิดเช็กชื่ออยู่ (งานกิจกรรมสั่งเปิดเมื่อ ${s.manual.at} น.)` : `เปิดเช็กชื่อ ${s.openTime}–${s.closeTime} น.`}${s.dayStatus === 'special' ? ` · กิจกรรมพิเศษ${s.dayNote ? `: ${s.dayNote}` : ''}` : ''}`,
+    open: `${s.manual ? `เปิดเช็กชื่ออยู่ (สั่งเปิดเมื่อ ${s.manual.at} น.)` : `เปิดเช็กชื่อ ${s.openTime}–${s.closeTime} น.`}${s.dayStatus === 'special' ? ` · กิจกรรมพิเศษ${s.dayNote ? `: ${s.dayNote}` : ''}` : ''}`,
     before: `ยังไม่ถึงเวลา — เปิดเช็กชื่อ ${s.openTime} น.`,
-    closed: s.manual ? `ปิดการเช็กชื่อแล้ว (งานกิจกรรมสั่งปิดเมื่อ ${s.manual.at} น.)` : `ปิดการเช็กชื่อแล้ว (${s.closeTime} น.)`,
+    closed: s.manual ? `ปิดการเช็กชื่อแล้ว (สั่งปิดเมื่อ ${s.manual.at} น.)` : `ปิดการเช็กชื่อแล้ว (${s.closeTime} น.)`,
     no_assembly: `วันนี้ไม่มีการเข้าแถว${s.daySource === 'calendar' ? ` · ${{ cancelled: 'งดเข้าแถวตามปฏิทินกิจกรรม', holiday: 'วันหยุดตามปฏิทิน', public_holiday: 'วันหยุดนักขัตฤกษ์' }[s.dayStatus] || ''}` : ''}${s.dayNote ? ` · ${s.dayNote}` : ''}`,
   }[s.phase];
 });
@@ -169,7 +169,8 @@ function tick() {
   clock.value = d.toISOString().slice(11, 19);
 }
 
-const canManage = computed(() => MANAGE(auth.user));
+// สั่งเปิด/ปิดการเช็กชื่อด้วยมือ: งานกิจกรรม งานบุคลากร ผู้ดูแล
+const canManage = computed(() => MANAGE(auth.user) || auth.user.role === 'hr');
 function onWindow(s) {
   state.value = { ...state.value, ...s };
 }

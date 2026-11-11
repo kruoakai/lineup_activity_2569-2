@@ -26,11 +26,13 @@ afterAll(async () => {
 });
 
 describe('สั่งเปิด / ปิดการเช็กชื่อด้วยมือ', () => {
-  test('เฉพาะงานกิจกรรม/ผู้ดูแล · คำสั่งต้องถูกต้อง', async () => {
+  test('เฉพาะงานกิจกรรม/งานบุคลากร/ผู้ดูแล · คำสั่งต้องถูกต้อง', async () => {
     clock.setNow(bkk(MON, '07:00:00'));
     await api(tok.A1).post('/api/attendance/window').send({ mode: 'open' }).expect(403);
-    await api(tok.HR1).post('/api/attendance/window').send({ mode: 'open' }).expect(403);
     await api(tok.ACT).post('/api/attendance/window').send({ mode: 'x' }).expect(400);
+    const s = (await api(tok.HR1).post('/api/attendance/window').send({ mode: 'open' }).expect(200)).body;
+    expect(s).toMatchObject({ phase: 'open', manual: { mode: 'open', by: 'งานบุคลากร' } });
+    await api(tok.HR1).post('/api/attendance/window').send({ mode: 'auto' }).expect(200);
   });
 
   test('สั่งเปิดก่อนเวลา → เช็กชื่อได้ทันที แล้วสั่งปิดก่อนเวลา → เช็กไม่ได้', async () => {

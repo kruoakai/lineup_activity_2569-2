@@ -27,8 +27,8 @@ router.get('/state', async (req, res) => {
   });
 });
 
-// งานกิจกรรม/ผู้ดูแล: สั่งเปิด / ปิดการเช็กชื่อด้วยมือ หรือกลับไปใช้ตามเวลา (มีผลเฉพาะวันนี้)
-router.post('/window', requireRole(...MANAGE_ALL), async (req, res) => {
+// งานกิจกรรม/งานบุคลากร/ผู้ดูแล: สั่งเปิด / ปิดการเช็กชื่อด้วยมือ หรือกลับไปใช้ตามเวลา (มีผลเฉพาะวันนี้)
+router.post('/window', requireRole(...MANAGE_ALL, 'hr'), async (req, res) => {
   const mode = String(req.body?.mode || '');
   const state = await schedule.setManual(req.user, mode);
   await db.query('INSERT INTO admin_logs (actor_id, action, target, detail, ip) VALUES (?, ?, ?, ?, ?)',

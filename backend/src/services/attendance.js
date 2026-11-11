@@ -141,7 +141,7 @@ async function selfCheckInOnce(user, body, ip) {
   if (state.phase === 'no_assembly') throw new HttpError(409, `วันนี้ไม่มีการเข้าแถว${state.dayNote ? ` (${state.dayNote})` : ''}`, 'NO_ASSEMBLY');
   if (state.phase === 'before') throw new HttpError(409, `ยังไม่ถึงเวลาเช็กชื่อ (เปิด ${state.openTime} น.)`, 'NOT_OPEN');
   if (state.phase === 'closed') {
-    throw new HttpError(409, `ปิดการเช็กชื่อแล้ว (${state.manual ? `งานกิจกรรมสั่งปิดเมื่อ ${state.manual.at}` : state.closeTime} น.) ติดต่อเจ้าหน้าที่งานกิจกรรม`, 'CLOSED');
+    throw new HttpError(409, `ปิดการเช็กชื่อแล้ว (${state.manual ? `สั่งปิดเมื่อ ${state.manual.at} น. โดย ${state.manual.by}` : `${state.closeTime} น.`}) ติดต่อเจ้าหน้าที่งานกิจกรรม`, 'CLOSED');
   }
   if (!user.must_assemble) throw new HttpError(400, 'บัญชีนี้ไม่อยู่ในเกณฑ์ต้องเข้าแถว');
 

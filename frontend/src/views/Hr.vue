@@ -53,6 +53,9 @@
     <div v-if="error" class="alert bad" style="white-space:pre-line">{{ error }}</div>
     <div v-if="message" class="alert ok">{{ message }}</div>
 
+    <!-- สั่งเปิด / ปิดการเช็กชื่อด้วยมือ (เฉพาะวันนี้) -->
+    <WindowControl v-if="win && day === today" :state="win" @changed="onWindow" />
+
     <div v-if="view" class="tiles">
       <div class="t"><b>{{ counts.total }}</b><span>บุคลากร</span></div>
       <div class="t"><b class="c-info">{{ counts.official }}</b><span>ไปราชการ</span></div>
@@ -281,6 +284,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, download } from '../api';
 import { askPassword } from '../confirm';
+import WindowControl from '../components/WindowControl.vue';
 import { STATUS, statusLabel, thaiDate, thaiRange, thaiTime, serverToday, addDays, weekStart, LEAVE_TYPE } from '../util';
 
 const router = useRouter();
@@ -379,6 +383,14 @@ function onDay() {
   if (day.value && day.value !== loadedDay.value) load();
 }
 
+const win = ref(null);
+// สั่งเปิด/ปิดแล้ว: โหลดรายชื่อใหม่ (กล่องไม่เข้าแถวเปลี่ยนตามสถานะ)
+async function onWindow(s) {
+  win.value = { ...win.value, ...s };
+  await load();
+  message.value = s.manual ? `${s.manual.mode === 'open' ? 'สั่งเปิด' : 'สั่งปิด'}การเช็กชื่อแล้ว (มีผลเฉพาะวันนี้)` : 'กลับไปใช้ตามเวลาแล้ว';
+}
+
 async function load() {
   loadedDay.value = day.value;
   preview.value = null;
@@ -387,6 +399,7 @@ async function load() {
   to.value = day.value;
   await run(async () => {
     view.value = await api(`/api/hr/day/${day.value}`);
+    win.value = day.value === today.value ? await api('/api/attendance/state').catch(() => null) : null;
     marks.value = {
       late: view.value.people.filter((p) => p.late).map((p) => p.id),
       no_signout: view.value.people.filter((p) => p.no_signout).map((p) => p.id),
