@@ -41,7 +41,16 @@ async function windowState(at = clock.now()) {
   else if (bkk.seconds < openSec) phase = 'before';
   else if (bkk.seconds <= closeSec) phase = 'open';
   else phase = 'closed';
+  // สั่งเปิด/ปิดด้วยมือ: ใช้เฉพาะวันที่สั่ง และเฉพาะวันเข้าแถว
+  const scheduledPhase = phase;
+  let manual = null;
+  if (info.isAssemblyDay && s.window_override_day === bkk.day && ['open', 'closed'].includes(s.window_override)) {
+    phase = s.window_override;
+    manual = { mode: s.window_override, by: s.window_override_by, at: s.window_override_at };
+  }
   return {
+    scheduledPhase,
+    manual,
     day: bkk.day,
     serverTime: bkk.time,
     phase,
@@ -54,4 +63,22 @@ async function windowState(at = clock.now()) {
   };
 }
 
-module.exports = { dayInfo, assemblyDaysBetween, windowState, ASSEMBLY };
+/**
+ * สั่งเปิด / ปิดการเช็กชื่อด้วยมือ (mode: open | closed) หรือกลับไปใช้ตามเวลา (auto)
+ * มีผลเฉพาะวันนี้ — วันถัดไปกลับไปใช้เวลาตามตั้งค่าเอง
+ */
+async function setManual(actor, mode) {
+  if (!['open', 'closed', 'auto'].includes(mode)) {
+    const e = new Error('คำสั่งไม่ถูกต้อง'); e.status = 400; throw e;
+  }
+  const st = await windowState();
+  if (mode !== 'auto' && !st.isAssemblyDay) {
+    const e = new Error('วันนี้ไม่ใช่วันเข้าแถว — เพิ่มวันเข้าแถวที่ "ปฏิทินวันเข้าแถว" ก่อนจึงสั่งเปิดได้'); e.status = 409; throw e;
+  }
+  await settings.update(mode === 'auto'
+    ? { window_override: '', window_override_day: '', window_override_by: '', window_override_at: '' }
+    : { window_override: mode, window_override_day: st.day, window_override_by: String(actor.full_name || '').slice(0, 190), window_override_at: clock.bangkok().time.slice(0, 5) });
+  return windowState();
+}
+
+module.exports = { dayInfo, assemblyDaysBetween, windowState, setManual, ASSEMBLY };

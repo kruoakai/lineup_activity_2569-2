@@ -9,6 +9,7 @@
     </div>
     <div class="bar"><div :style="{ width: `${progress}%` }" /></div>
     <div class="time">{{ clockText || serverTime }}</div>
+    <WindowControl v-if="win" :state="win" dark @changed="refreshQr" />
     <p v-if="error" class="err">{{ error }}</p>
   </div>
 </template>
@@ -17,9 +18,11 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import QRCode from 'qrcode';
 import { api } from '../api';
+import WindowControl from '../components/WindowControl.vue';
 
 const canvas = ref(null);
 const phase = ref('open');
+const win = ref(null);
 const interval = ref(30);
 const serverTime = ref('');
 const clockText = ref('');
@@ -36,6 +39,7 @@ async function refreshQr() {
   try {
     const r = await api('/api/attendance/qr/current');
     phase.value = r.phase;
+    win.value = { phase: r.phase, manual: r.manual, scheduledPhase: r.scheduledPhase, isAssemblyDay: r.isAssemblyDay, openTime: r.openTime, closeTime: r.closeTime };
     interval.value = r.intervalS;
     serverTime.value = r.serverTime;
     serverBase = r.serverTime;

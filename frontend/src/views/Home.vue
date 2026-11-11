@@ -8,6 +8,8 @@
       <p class="phase" :class="phaseCls">{{ phaseText }}</p>
     </section>
 
+    <WindowControl v-if="state && canManage" :state="state" @changed="onWindow" />
+
     <!-- ผลวันนี้ -->
     <section v-if="record" class="card result" :class="STATUS[record.status].cls">
       <div class="big">{{ record.status === 'present' ? '✓' : record.status === 'pending' ? '…' : 'i' }}</div>
@@ -114,6 +116,8 @@ import { api, auth } from '../api';
 import { STATUS, METHOD, statusLabel, thaiDate, thaiTime, deviceId, getBestPosition, distanceMeters } from '../util';
 import PhotoPicker from '../components/PhotoPicker.vue';
 import QrScanner from '../components/QrScanner.vue';
+import WindowControl from '../components/WindowControl.vue';
+import { MANAGE } from '../router';
 
 const route = useRoute();
 const router = useRouter();
@@ -147,9 +151,9 @@ const phaseText = computed(() => {
   const s = state.value;
   if (!s) return '';
   return {
-    open: `เปิดเช็กชื่อ ${s.openTime}–${s.closeTime} น.${s.dayStatus === 'special' ? ` · กิจกรรมพิเศษ${s.dayNote ? `: ${s.dayNote}` : ''}` : ''}`,
+    open: `${s.manual ? `เปิดเช็กชื่ออยู่ (งานกิจกรรมสั่งเปิดเมื่อ ${s.manual.at} น.)` : `เปิดเช็กชื่อ ${s.openTime}–${s.closeTime} น.`}${s.dayStatus === 'special' ? ` · กิจกรรมพิเศษ${s.dayNote ? `: ${s.dayNote}` : ''}` : ''}`,
     before: `ยังไม่ถึงเวลา — เปิดเช็กชื่อ ${s.openTime} น.`,
-    closed: `ปิดการเช็กชื่อแล้ว (${s.closeTime} น.)`,
+    closed: s.manual ? `ปิดการเช็กชื่อแล้ว (งานกิจกรรมสั่งปิดเมื่อ ${s.manual.at} น.)` : `ปิดการเช็กชื่อแล้ว (${s.closeTime} น.)`,
     no_assembly: `วันนี้ไม่มีการเข้าแถว${s.daySource === 'calendar' ? ` · ${{ cancelled: 'งดเข้าแถวตามปฏิทินกิจกรรม', holiday: 'วันหยุดตามปฏิทิน', public_holiday: 'วันหยุดนักขัตฤกษ์' }[s.dayStatus] || ''}` : ''}${s.dayNote ? ` · ${s.dayNote}` : ''}`,
   }[s.phase];
 });
@@ -163,6 +167,11 @@ const distance = computed(() => {
 function tick() {
   const d = new Date(Date.now() + offset.value + 7 * 3600_000);
   clock.value = d.toISOString().slice(11, 19);
+}
+
+const canManage = computed(() => MANAGE(auth.user));
+function onWindow(s) {
+  state.value = { ...state.value, ...s };
 }
 
 async function load() {
@@ -264,10 +273,10 @@ onMounted(async () => {
   timer = setInterval(() => {
     tick();
     const s = state.value;
-    // เปลี่ยนช่วงเวลาอัตโนมัติเมื่อถึงเวลาเปิด/ปิด
-    if (s && ((s.phase === 'before' && clock.value >= `${s.openTime}:00`) || (s.phase === 'open' && clock.value > `${s.closeTime}:59`))) load();
-    // ยังไม่ได้เช็กชื่อ: ตรวจทุก 30 วินาที เผื่อมีเพื่อนเช็กแทนให้แล้ว
-    else if (s && s.phase === 'open' && !record.value && !busy.value && clock.value.endsWith('0') && Number(clock.value.slice(6, 8)) % 30 === 0) load();
+    // เปลี่ยนช่วงเวลาอัตโนมัติเมื่อถึงเวลาเปิด/ปิด (ไม่ใช้เมื่องานกิจกรรมสั่งเปิด/ปิดด้วยมือ)
+    if (s && !s.manual && ((s.phase === 'before' && clock.value >= `${s.openTime}:00`) || (s.phase === 'open' && clock.value > `${s.closeTime}:59`))) load();
+    // ยังไม่ได้เช็กชื่อ: ตรวจทุก 30 วินาที เผื่อมีเพื่อนเช็กแทนให้แล้ว หรืองานกิจกรรมสั่งเปิด/ปิดด้วยมือ
+    else if (s && s.phase !== 'no_assembly' && (!record.value || canManage.value) && !busy.value && clock.value.endsWith('0') && Number(clock.value.slice(6, 8)) % 30 === 0) load();
   }, 1000);
   if (qrToken.value && state.value?.phase === 'open' && !record.value) checkIn();
 });

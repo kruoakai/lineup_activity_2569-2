@@ -27,6 +27,15 @@ router.get('/state', async (req, res) => {
   });
 });
 
+// งานกิจกรรม/ผู้ดูแล: สั่งเปิด / ปิดการเช็กชื่อด้วยมือ หรือกลับไปใช้ตามเวลา (มีผลเฉพาะวันนี้)
+router.post('/window', requireRole(...MANAGE_ALL), async (req, res) => {
+  const mode = String(req.body?.mode || '');
+  const state = await schedule.setManual(req.user, mode);
+  await db.query('INSERT INTO admin_logs (actor_id, action, target, detail, ip) VALUES (?, ?, ?, ?, ?)',
+    [req.user.id, 'window.manual', `${state.day} ${mode}`, JSON.stringify({ phase: state.phase, scheduled: state.scheduledPhase }), req.ip]);
+  res.json(state);
+});
+
 router.post('/check-in', async (req, res) => {
   res.json(await attendance.selfCheckIn(req.user, req.body || {}, req.ip));
 });
@@ -137,7 +146,10 @@ router.post('/proxy-release', async (req, res) => {
 router.get('/qr/current', requireRole(...MANAGE_ALL), async (req, res) => {
   const s = await settings.getAll();
   const state = await schedule.windowState();
-  res.json({ ...qr.current(s.qr_interval_s), phase: state.phase, serverTime: state.serverTime });
+  res.json({
+    ...qr.current(s.qr_interval_s), phase: state.phase, serverTime: state.serverTime,
+    manual: state.manual, scheduledPhase: state.scheduledPhase, isAssemblyDay: state.isAssemblyDay, openTime: state.openTime, closeTime: state.closeTime,
+  });
 });
 
 module.exports = router;

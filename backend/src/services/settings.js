@@ -26,11 +26,20 @@ const DEFAULTS = {
   sign_step3_title: 'ผู้อำนวยการวิทยาลัยเทคนิคชัยภูมิ',
   sign_step3_label: 'ผู้อำนวยการ',
   sign_step3_user: '',
+  // สั่งเปิด/ปิดการเช็กชื่อด้วยมือ (งานกิจกรรม) — มีผลเฉพาะวันที่ระบุ แล้วกลับไปใช้ตามเวลาเอง
+  window_override: '',           // '' | open | closed
+  window_override_day: '',
+  window_override_by: '',
+  window_override_at: '',
 };
 
 const NUMERIC = new Set(['geofence_radius_m', 'max_accuracy_m', 'qr_interval_s', 'photo_retention_days']);
 
 const VALIDATORS = {
+  window_override: (v) => ['', 'open', 'closed'].includes(v),
+  window_override_day: (v) => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v),
+  window_override_by: (v) => v.length <= 190,
+  window_override_at: (v) => v === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(v),
   open_time: (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v),
   close_time: (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v),
   assembly_weekdays: (v) => /^([0-6])(,[0-6])*$/.test(v),

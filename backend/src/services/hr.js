@@ -238,7 +238,9 @@ async function dailySummary(day) {
     assembly = { held: false, reason: info.status === 'cancelled' ? `งดกิจกรรมหน้าเสาธง${info.note ? ` (${info.note})` : ''}` : 'ไม่มีกิจกรรมหน้าเสาธง', list: [] };
   } else {
     if (day === state.day && state.phase !== 'closed') {
-      throw new HttpError(409, `ยังไม่ปิดการเช็กชื่อเข้าแถวของวันนี้ (ปิด ${state.closeTime} น.) — สร้างรายงานได้หลังปิดเช็กชื่อ`, 'NOT_CLOSED');
+      throw new HttpError(409, state.manual?.mode === 'open'
+        ? 'งานกิจกรรมสั่งเปิดการเช็กชื่อด้วยมืออยู่ — สร้างรายงานได้หลังสั่งปิดเช็กชื่อ'
+        : `ยังไม่ปิดการเช็กชื่อเข้าแถวของวันนี้ (ปิด ${state.closeTime} น.) — สร้างรายงานได้หลังปิดเช็กชื่อ`, 'NOT_CLOSED');
     }
     const notJoined = people.filter((p) => p.must_assemble && (!p.status || ['absent', 'pending'].includes(p.status))).sort(byType);
     const pending = notJoined.filter((p) => p.status === 'pending').length;
