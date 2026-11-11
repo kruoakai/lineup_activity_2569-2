@@ -5,6 +5,21 @@ import { computed, reactive } from 'vue';
 
 const DISMISS_KEY = 'install-dismissed-at';
 const DISMISS_DAYS = 14;
+const DEMO_KEY = 'install-demo';
+
+// ลิงก์สาธิต ?install=demo: ล้าง "ไว้ทีหลัง" และแสดงการ์ดติดตั้งเสมอ (ทุกหน้าจนปิดแท็บ) · ?install=off ปิดโหมดสาธิต
+function demoMode() {
+  try {
+    const q = new URLSearchParams(window.location.search).get('install');
+    if (q === 'demo') {
+      sessionStorage.setItem(DEMO_KEY, '1');
+      localStorage.removeItem(DISMISS_KEY);
+    } else if (q === 'off') {
+      sessionStorage.removeItem(DEMO_KEY);
+    }
+    return sessionStorage.getItem(DEMO_KEY) === '1';
+  } catch { return false; }
+}
 
 const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent || '';
 const isIOS = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1);
@@ -25,11 +40,14 @@ function dismissedRecently() {
   } catch { return false; }
 }
 
+const demo = typeof window !== 'undefined' && demoMode();
+
 export const install = reactive({
+  demo,
   deferred: null, // เหตุการณ์ beforeinstallprompt ที่ยังไม่ได้ใช้
   installed: typeof window !== 'undefined' && standaloneNow(),
   justInstalled: false,
-  dismissed: dismissedRecently(),
+  dismissed: !demo && dismissedRecently(),
   isIOS,
   isAndroid,
   inApp,
@@ -58,11 +76,15 @@ export const installMode = computed(() => {
   if (install.inApp) return 'inapp';
   if (install.isIOS) return 'ios';
   if (install.isAndroid) return 'menu';
+  if (install.demo) return 'desktop';
   return null;
 });
 
 // แสดงแถบชวนติดตั้งบนหน้าแรก: เฉพาะมือถือ ยังไม่ติดตั้ง และไม่ได้กด "ไว้ทีหลัง" ภายใน 14 วัน
-export const showBanner = computed(() => !install.dismissed && !!installMode.value && (install.mobile || installMode.value === 'prompt'));
+export const showBanner = computed(() => {
+  if (install.demo) return !install.dismissed && !install.installed;
+  return !install.dismissed && !!installMode.value && (install.mobile || installMode.value === 'prompt');
+});
 
 export async function promptInstall() {
   const e = install.deferred;

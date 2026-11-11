@@ -77,3 +77,18 @@ test('หน้าเข้าสู่ระบบบนมือถือ: เ
   if (SHOT) await page.screenshot({ path: `${SHOT}/install-login.png`, fullPage: true });
   await ctx.close();
 });
+
+test('ลิงก์สาธิต ?install=demo: แสดงการ์ดแม้เคยกดไว้ทีหลัง และบนคอมพิวเตอร์', async ({ page }) => {
+  await page.goto('/login');
+  await page.evaluate(() => localStorage.setItem('install-dismissed-at', String(Date.now())));
+  await page.goto('/login?install=demo');
+  const card = page.locator('.install.banner');
+  await expect(card).toContainText('โหมดสาธิต');
+  await expect(card).toContainText('ช่องที่อยู่เว็บ');
+  if (SHOT) await page.screenshot({ path: `${SHOT}/install-demo.png`, fullPage: true });
+  await login(page, 'T3');
+  await expect(page.locator('.install.banner')).toContainText('โหมดสาธิต'); // ยังอยู่หลังเข้าสู่ระบบ
+  await page.goto('/?install=off');
+  await expect(page.locator('.hero')).toBeVisible();
+  await expect(page.locator('.install.banner')).toHaveCount(0);
+});

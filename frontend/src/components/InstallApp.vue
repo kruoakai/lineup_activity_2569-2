@@ -5,6 +5,7 @@
       <img src="/icon-192.png" alt="" class="ico" width="44" height="44" />
       <div class="grow">
         <b>{{ install.installed ? 'ติดตั้งแอปแล้ว' : 'ติดตั้งแอป “เข้าแถว” บนมือถือ' }}</b>
+        <span v-if="install.demo" class="demo">โหมดสาธิต</span>
         <div class="small muted">{{ sub }}</div>
       </div>
       <button v-if="variant === 'banner'" type="button" class="x" aria-label="ปิดแถบติดตั้ง" @click="dismissInstall">✕</button>
@@ -30,10 +31,16 @@
         <li>เลือก <b>“ติดตั้งแอป”</b> หรือ <b>“เพิ่มลงในหน้าจอหลัก”</b></li>
       </ol>
 
+      <ol v-else-if="mode === 'desktop'" class="steps">
+        <li>คอมพิวเตอร์ (Chrome / Edge): กดไอคอน <b>ติดตั้ง</b> <span class="key" aria-hidden="true">⊕</span> ที่ขวาสุดของช่องที่อยู่เว็บ หรือเมนู <b>⋮</b> → <b>“ติดตั้งแอป”</b></li>
+        <li>Android (Chrome): เมนู <b>⋮</b> → <b>“ติดตั้งแอป”</b> · iPhone (Safari): <b>แชร์</b> → <b>“เพิ่มไปยังหน้าจอโฮม”</b></li>
+      </ol>
+
       <p v-else class="small muted" style="margin:0">
         Android (Chrome): เมนู ⋮ → “ติดตั้งแอป” · iPhone (Safari): ปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”
         <template v-if="!install.mobile"> · บนคอมพิวเตอร์ใช้ผ่านเบราว์เซอร์ได้ตามปกติ</template></p>
 
+      <p v-if="install.demo && mode !== 'prompt'" class="small muted" style="margin:0">ปุ่ม “📲 ติดตั้งแอป” จะขึ้นเมื่อ Chrome พร้อมให้ติดตั้ง (หลังถอนการติดตั้ง Chrome อาจรอสักระยะ) — ระหว่างนี้ใช้ขั้นตอนด้านบนได้เหมือนกัน</p>
       <button v-if="variant === 'banner'" type="button" class="btn sm later" @click="dismissInstall">ไว้ทีหลัง</button>
     </template>
   </section>
@@ -72,4 +79,5 @@ async function copy() {
 .steps { margin: 0; padding-left: 22px; line-height: 1.7; font-size: .92rem; }
 .key { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); font-size: .8rem; }
 .later { justify-self: end; }
+.demo { display: inline-block; margin-left: 6px; padding: 0 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: .72rem; font-weight: 700; vertical-align: middle; }
 </style>
