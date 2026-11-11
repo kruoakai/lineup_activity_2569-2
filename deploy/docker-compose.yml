@@ -50,6 +50,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # น้องแถวดี (AI ผู้ช่วย) ผ่าน OpenRouter — ใส่คีย์ใน deploy/.env เท่านั้น
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-opus-5.5}
     volumes:
       - uploads:/app/uploads
       - ./backups:/backups

@@ -293,3 +293,17 @@ cd ../e2e && npm install && npm test
 | `backend/data/personnel.json` | แปลงจาก Excel (หัวข้อ 4) เป็นข้อมูลส่วนบุคคล |
 | `deploy/initial-passwords.csv` | สร้างตอนติดตั้ง ลบทิ้งหลังแจกจ่าย |
 | `deploy/backups/`, `backend/uploads/` | ข้อมูลจริงบนเซิร์ฟเวอร์ |
+
+## น้องแถวดี (AI ผู้ช่วยตอบคำถามการใช้งาน)
+
+ผู้ช่วยแชตเรียกโมเดล Claude ผ่าน OpenRouter ปุ่มน้องแถวดีจะแสดงเมื่อเซิร์ฟเวอร์มีคีย์เท่านั้น
+
+1. เพิ่มใน `deploy/.env` (ห้าม commit ไฟล์นี้):
+   ```
+   OPENROUTER_API_KEY=sk-or-v1-...
+   OPENROUTER_MODEL=anthropic/claude-opus-5.5   # ประหยัดกว่า: anthropic/claude-haiku-5.5
+   ```
+2. `cd /opt/lineup/deploy && sudo docker compose up -d app`
+3. จำกัด 40 คำถาม/ชั่วโมง และ 120 คำถาม/วัน ต่อผู้ใช้ ตั้งวงเงินที่ OpenRouter เพิ่มได้ (Settings → Credits / Limits)
+4. ความรู้ที่น้องใช้ตอบอยู่ใน `backend/src/assistant/knowledge.md` แก้ไขแล้ว deploy ใหม่เมื่อระบบเปลี่ยน
+5. ส่งให้ผู้ให้บริการเฉพาะคำถาม ประวัติแชตล่าสุดของผู้ถาม บทบาท และสถานะเช็กชื่อของผู้ถามวันนี้ ไม่ส่งข้อมูลของบุคคลอื่น

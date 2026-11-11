@@ -31,6 +31,7 @@
       <router-link to="/more" active-class="active"><span class="ico">☰<i v-if="pending" class="dot">{{ pending }}</i></span>เพิ่มเติม</router-link>
     </nav>
     <PasswordDialog />
+    <AssistantChat v-if="showChrome" />
     <div v-if="askLogout" class="modal-back" @click.self="askLogout = false">
       <div class="modal stack logout-box" role="dialog" aria-modal="true" aria-labelledby="lo-title">
         <div class="lo-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" /><path d="M10 17l-5-5 5-5" /><path d="M5 12h11" /></svg></div>
@@ -50,6 +51,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, auth, logout } from './api';
 import PasswordDialog from './components/PasswordDialog.vue';
+import AssistantChat from './components/AssistantChat.vue';
 import { VIEW_REPORT } from './router';
 
 const route = useRoute();
