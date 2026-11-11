@@ -106,6 +106,9 @@
     <section v-if="state && state.phase === 'open' && !state.geofence && state.checkMode !== 'none'" class="alert warn small">
       ผู้ดูแลระบบยังไม่ได้กำหนดพื้นที่เข้าแถว ระบบจะส่งการเช็กชื่อให้เจ้าหน้าที่ตรวจสอบ
     </section>
+
+    <!-- ชวนติดตั้งแอป (มือถือ) — อยู่ท้ายหน้า ไม่บังปุ่มเช็กชื่อ -->
+    <InstallApp v-if="state" />
   </div>
 </template>
 
@@ -117,6 +120,7 @@ import { STATUS, METHOD, statusLabel, thaiDate, thaiTime, deviceId, getBestPosit
 import PhotoPicker from '../components/PhotoPicker.vue';
 import QrScanner from '../components/QrScanner.vue';
 import WindowControl from '../components/WindowControl.vue';
+import InstallApp from '../components/InstallApp.vue';
 import { MANAGE } from '../router';
 
 const route = useRoute();

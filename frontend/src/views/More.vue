@@ -23,11 +23,7 @@
       </div>
     </section>
 
-    <section class="card stack">
-      <h3>ติดตั้งเป็นแอปบนมือถือ</h3>
-      <p class="small muted">Android (Chrome): เมนู ⋮ → “ติดตั้งแอป” หรือ “เพิ่มลงในหน้าจอหลัก”<br />
-        iPhone (Safari): ปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”</p>
-    </section>
+    <InstallApp variant="card" />
 
     <section class="card stack">
       <button class="btn danger block" @click="doLogout">ออกจากระบบ</button>
@@ -48,6 +44,7 @@ import { api, auth, imageUrl, logout } from '../api';
 import { ROLE } from '../util';
 import { MANAGE } from '../router';
 import Credits from '../components/Credits.vue';
+import InstallApp from '../components/InstallApp.vue';
 
 const router = useRouter();
 const manage = computed(() => MANAGE(auth.user));
