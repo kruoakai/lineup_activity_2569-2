@@ -67,3 +67,13 @@ test('คอมพิวเตอร์: ไม่แสดงแถบชวน
   await expect(page.locator('.hero')).toBeVisible();
   await expect(page.locator('.install.banner')).toHaveCount(0);
 });
+
+test('หน้าเข้าสู่ระบบบนมือถือ: เห็นปุ่ม/ขั้นตอนติดตั้งก่อนเข้าสู่ระบบ', async ({ browser }, info) => {
+  const { ctx, page } = await phone(browser, info, UA.android);
+  await page.goto('/login');
+  await expect(page.locator('.install.banner')).toBeVisible();
+  await page.evaluate(FAKE_PROMPT);
+  await expect(page.locator('.install.banner').getByRole('button', { name: '📲 ติดตั้งแอป' })).toBeVisible();
+  if (SHOT) await page.screenshot({ path: `${SHOT}/install-login.png`, fullPage: true });
+  await ctx.close();
+});

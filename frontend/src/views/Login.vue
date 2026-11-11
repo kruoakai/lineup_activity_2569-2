@@ -44,6 +44,8 @@
       </button>
       <p class="small muted center" style="margin:0">ไม่ติ๊ก "จำฉันไว้" = ออกจากระบบเมื่อปิดเบราว์เซอร์ (เหมาะกับเครื่องส่วนกลาง)</p>
     </form>
+    <!-- ติดตั้งแอปได้ตั้งแต่ก่อนเข้าสู่ระบบ (มือถือ) -->
+    <InstallApp class="login-install" />
     <Credits />
   </div>
 </template>
@@ -54,6 +56,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { login } from '../api';
 import { deviceId } from '../util';
 import Credits from '../components/Credits.vue';
+import InstallApp from '../components/InstallApp.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -101,6 +104,7 @@ async function submit() {
 
 <style scoped>
 .login { max-width: 400px; margin: 7vh auto 0; text-align: center; padding: 0 4px; }
+.login-install { text-align: left; margin-top: 14px; }
 .login form { text-align: left; margin-top: 18px; }
 .fld label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
 .ibox { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 6px; border-radius: 12px;
