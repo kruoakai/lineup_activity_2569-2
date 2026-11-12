@@ -15,7 +15,7 @@
         <div class="ibox" :class="{ invalid: touched && !username }">
           <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5c.8-3.9 3.9-6 7.5-6s6.7 2.1 7.5 6" /></svg></span>
           <input id="login-user" v-model.trim="username" autocomplete="username" autocapitalize="none" spellcheck="false"
-            placeholder="เช่น 475 หรืออีเมล" required />
+            placeholder="เช่น tc001 หรืออีเมล" required />
         </div>
       </div>
 
