@@ -143,4 +143,22 @@ describe('น้องแถวดี (AI ผู้ช่วย)', () => {
     v = (await api(tok.ADM).put('/api/admin/assistant').send({ password: h.PASSWORD, clearKey: true, switchedOn: true }).expect(200)).body;
     expect(v).toMatchObject({ hasKey: false, enabled: false });
   });
+
+  test('ผู้บริหาร: ได้คำเรียกตามตำแหน่ง (ตั้งเอง หรือเดาจากตำแหน่ง) และส่งให้น้องแถวดีใช้ทักทาย', async () => {
+    const dir = await h.createUser({ code: 'EX1', name: 'ผู้อำนวยการทดสอบ', role: 'executive', mustAssemble: false });
+    const dep = await h.createUser({ code: 'EX2', name: 'รองทดสอบ', role: 'executive', mustAssemble: false });
+    await h.db.query("UPDATE users SET position_title = 'ผู้อำนวยการวิทยาลัยเทคนิคชัยภูมิ' WHERE id = ?", [dir]);
+    await h.db.query("UPDATE users SET position_title = 'รองผู้อำนวยการฝ่ายบริหารทรัพยากร' WHERE id = ?", [dep]);
+    const t1 = await h.login('EX1');
+    const t2 = await h.login('EX2');
+    expect((await api(t1).get('/api/auth/me')).body.user?.honorific ?? (await api(t1).get('/api/auth/me')).body.honorific).toBe('ท่านผู้อำนวยการ');
+    expect(JSON.stringify((await api(t2).get('/api/auth/me')).body)).toContain('ท่านรองฝ่ายบริหารทรัพยากร');
+    // ผู้ดูแลตั้งเองมีผลเหนือการเดา
+    await api(tok.ADM).patch(`/api/admin/users/${dep}`).send({ honorific: 'ท่านรองฝ่ายวิชาการ' }).expect(200);
+    expect(JSON.stringify((await api(t2).get('/api/auth/me')).body)).toContain('ท่านรองฝ่ายวิชาการ');
+    fakeFetch(() => ({ json: { choices: [{ message: { content: 'สวัสดีค่ะท่านผู้อำนวยการ' } }] } }));
+    await api(t1).post('/api/assistant/chat').send({ messages: [{ role: 'user', content: 'สวัสดี' }] }).expect(200);
+    expect(calls[0].body.messages[1].content).toContain('คำเรียก: ท่านผู้อำนวยการ');
+    expect(calls[0].body.messages[0].content).toContain('เรียกผู้ใช้ตาม "คำเรียก"');
+  });
 });

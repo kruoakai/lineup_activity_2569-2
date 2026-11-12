@@ -37,7 +37,7 @@ async function authenticate(req, _res, next) {
   }
   const [user] = await db.query(
     `SELECT u.id, u.employee_code, u.email, u.full_name, u.position_title, u.phone, u.avatar_path,
-            u.signature_path, u.department_id, u.role, u.can_proxy, u.proxy_until,
+            u.signature_path, u.department_id, u.role, u.can_proxy, u.proxy_until, u.honorific,
             u.must_assemble, u.active, u.must_change_password, u.consent_at, u.line_user_id, u.line_name, d.name AS department_name
        FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.id = ?`,
     [payload.sub],

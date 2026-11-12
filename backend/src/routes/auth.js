@@ -8,6 +8,7 @@ const tokens = require('../services/tokens');
 const passwords = require('../services/passwords');
 const crypto = require('crypto');
 const mailer = require('../services/mailer');
+const { honorificOf } = require('../services/honorific');
 const line = require('../services/lineAuth');
 const { authenticate, HttpError, effectiveProxy, peerCheck } = require('../middleware/auth');
 
@@ -34,6 +35,7 @@ async function publicUser(u) {
     department_id: u.department_id,
     department_name: u.department_name,
     position_title: u.position_title || '',
+    honorific: honorificOf(u),
     phone: u.phone || '',
     has_avatar: !!u.avatar_path,
     has_signature: !!u.signature_path,

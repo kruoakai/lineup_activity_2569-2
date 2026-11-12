@@ -222,6 +222,11 @@ const MIGRATIONS = [
     // แก้ไขเอกสาร (ดึงข้อมูลใหม่แล้วส่งลงนามใหม่) บันทึกเป็นประวัติ — ลายเซ็นก่อนหน้ารอบแก้ไขไม่นับ
     sql: ["ALTER TABLE report_signatures MODIFY action ENUM('sign','return','revise') NOT NULL"],
   },
+  {
+    id: '2026-11-12-16-honorific',
+    // คำเรียกผู้บริหารตามตำแหน่ง เช่น "ท่านผู้อำนวยการ" (น้องแถวดีใช้ทักทาย) ว่าง = เรียกตามชื่อ
+    sql: ['ALTER TABLE users ADD COLUMN honorific VARCHAR(100) NULL AFTER position_title'],
+  },
 ];
 
 async function migrate() {

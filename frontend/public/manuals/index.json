@@ -1,0 +1,63 @@
+[
+ {
+  "slug": "teacher",
+  "title": "ครูและบุคลากร",
+  "roles": [
+   "staff"
+  ],
+  "desc": "เช็กชื่อ ประวัติและสถิติ ติดตั้งแอป ลืมรหัสผ่าน",
+  "pdf": "teacher.pdf"
+ },
+ {
+  "slug": "dept-head",
+  "title": "หัวหน้าแผนกและตัวแทนเช็กชื่อ",
+  "roles": [
+   "dept_head"
+  ],
+  "desc": "เช็กแทน เช็กแบบกลุ่ม รายงานแผนก",
+  "pdf": "dept-head.pdf"
+ },
+ {
+  "slug": "hr",
+  "title": "เจ้าหน้าที่บุคลากร",
+  "roles": [
+   "hr"
+  ],
+  "desc": "ลา ราชการ มาสาย รายงานประจำวัน แก้ไขเอกสาร",
+  "pdf": "hr.pdf"
+ },
+ {
+  "slug": "activity",
+  "title": "เจ้าหน้าที่งานกิจกรรม",
+  "roles": [
+   "activity"
+  ],
+  "desc": "QR อนุมัติคำขอ ปฏิทิน รายงาน",
+  "pdf": "activity.pdf"
+ },
+ {
+  "slug": "executive",
+  "title": "ผู้บริหารและผู้ลงนาม",
+  "roles": [
+   "executive"
+  ],
+  "desc": "ลงนามเอกสาร ส่งกลับแก้ไข รายงานผู้บริหาร",
+  "pdf": "executive.pdf"
+ },
+ {
+  "slug": "admin",
+  "title": "ผู้ดูแลระบบ",
+  "roles": [
+   "admin"
+  ],
+  "desc": "ตั้งค่า ผู้ใช้ สำรอง/กู้คืน อีเมล น้องแถวดี",
+  "pdf": "admin.pdf"
+ },
+ {
+  "slug": "uat",
+  "title": "การทดสอบระบบ (UAT)",
+  "roles": [],
+  "desc": "กรณีทดสอบสำหรับคณะทำงาน",
+  "pdf": "uat.pdf"
+ }
+]

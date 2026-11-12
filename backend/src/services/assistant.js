@@ -7,6 +7,7 @@ const fs = require('fs');
 const db = require('../db');
 const config = require('../config');
 const { confirmPassword } = require('./confirm');
+const { honorificOf } = require('./honorific');
 const path = require('path');
 const schedule = require('./schedule');
 const attendance = require('./attendance');
@@ -29,7 +30,8 @@ const SYSTEM = `คุณคือ "น้องแถวดี" ผู้ช่
 หน้าที่: ตอบคำถามวิธีใช้งานเว็บแอปนี้ให้บุคลากรเข้าใจง่าย อ้างอิงเฉพาะความรู้ด้านล่าง
 
 วิธีตอบ
-- ภาษาไทย สุภาพ เป็นกันเอง ใช้ "ค่ะ" แทนตัวเองว่า "น้องแถวดี" หรือ "หนู" เรียกผู้ใช้ว่า "คุณครู" หรือ "ท่าน"
+- ภาษาไทย สุภาพ เป็นกันเอง ใช้ "ค่ะ" แทนตัวเองว่า "น้องแถวดี" หรือ "หนู"
+- เรียกผู้ใช้ตาม "คำเรียก" ในข้อมูลผู้ถาม (เช่น ท่านผู้อำนวยการ ท่านรองฝ่ายวิชาการ) ถ้ามี ใช้คำนั้นทุกครั้งที่เรียก และพูดอย่างนอบน้อมเป็นพิเศษ ถ้าไม่มี เรียก "คุณครู"
 - สั้น ชัด ตรงคำถาม ส่วนใหญ่ไม่เกิน 5 บรรทัด ถ้าเป็นขั้นตอนให้เขียนเป็นข้อ 1. 2. 3. ระบุชื่อเมนูและปุ่มตามที่ปรากฏในแอป ใช้ **ตัวหนา** กับชื่อปุ่มได้
 - ตอบให้เหมาะกับบทบาทของผู้ถาม ถ้าเรื่องนั้นบทบาทนี้ทำเองไม่ได้ ให้บอกว่าต้องติดต่อใคร
 - ไม่รู้หรือไม่มีในความรู้ ให้บอกตรง ๆ ว่าไม่แน่ใจ และแนะนำผู้ที่ควรติดต่อ ห้ามเดาเมนูหรือปุ่มที่ไม่มีอยู่จริง
@@ -124,7 +126,7 @@ async function contextFor(user) {
   const rec = await attendance.findRecord(user.id, win.day).catch(() => null);
   const status = rec ? `${attendance.STATUS_LABELS[rec.status] || rec.status}` : 'ยังไม่มีบันทึก';
   return [
-    `ผู้ถาม: บทบาท ${ROLE_TH[user.role] || user.role}${user.can_proxy ? ' (ตัวแทนเช็กชื่อแผนก)' : ''}${user.must_assemble === false || user.must_assemble === 0 ? ' · ไม่อยู่ในเกณฑ์ต้องเข้าแถว' : ''}`,
+    `${honorificOf(user) ? `คำเรียก: ${honorificOf(user)}\n` : ''}ผู้ถาม: บทบาท ${ROLE_TH[user.role] || user.role}${user.can_proxy ? ' (ตัวแทนเช็กชื่อแผนก)' : ''}${user.must_assemble === false || user.must_assemble === 0 ? ' · ไม่อยู่ในเกณฑ์ต้องเข้าแถว' : ''}`,
     `วันนี้ ${win.day} เวลา ${win.serverTime} น. · ${PHASE_TH[win.phase] || win.phase} (ช่วงเช็กชื่อ ${String(win.openTime).slice(0, 5)}–${String(win.closeTime).slice(0, 5)} น.)${win.dayNote ? ` · ${win.dayNote}` : ''}`,
     `ผลการเข้าแถววันนี้ของผู้ถาม: ${status}`,
   ].join('\n');

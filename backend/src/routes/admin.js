@@ -119,7 +119,7 @@ router.get('/users', async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.slice(0, 50) : '';
   const rows = await db.query(
     `SELECT u.id, u.employee_code, u.email, u.full_name, u.department_id, d.name AS department_name, u.role,
-            u.can_proxy, u.proxy_until, u.report_group, u.position_title, u.phone, u.avatar_path IS NOT NULL AS has_avatar, u.line_user_id IS NOT NULL AS has_line,
+            u.can_proxy, u.proxy_until, u.report_group, u.position_title, u.honorific, u.phone, u.avatar_path IS NOT NULL AS has_avatar, u.line_user_id IS NOT NULL AS has_line,
             u.must_assemble, u.active, u.must_change_password, u.consent_at
        FROM users u LEFT JOIN departments d ON d.id = u.department_id
       ${search ? 'WHERE u.full_name LIKE ? OR u.employee_code LIKE ? OR u.email LIKE ?' : ''}
@@ -152,6 +152,7 @@ function validateUser(b, partial) {
   for (const k of ['can_proxy', 'must_assemble', 'active']) if (b[k] !== undefined) out[k] = b[k] ? 1 : 0;
   if (b.report_group !== undefined) out.report_group = String(b.report_group || '').trim().slice(0, 150) || null;
   if (b.position_title !== undefined) out.position_title = String(b.position_title || '').trim().slice(0, 150);
+  if (b.honorific !== undefined) out.honorific = String(b.honorific || '').trim().slice(0, 100) || null;
   if (b.revoke_temp_proxy) out.proxy_until = null;
   if (b.unlink_line) { out.line_user_id = null; out.line_name = null; out.line_linked_at = null; }
   return out;

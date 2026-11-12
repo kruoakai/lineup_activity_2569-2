@@ -27,7 +27,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/manuals\/.+\.(pdf|html|json)$/],
         // ห้าม cache ข้อมูล API — ต้องใช้เวลาและสถานะจากเซิร์ฟเวอร์เสมอ
         runtimeCaching: [],
       },

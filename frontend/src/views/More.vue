@@ -58,6 +58,7 @@ const groups = computed(() => {
   const out = [{
     title: 'เอกสารและรายงาน',
     items: [
+      { to: '/manuals', icon: '📖', color: 'indigo', label: 'คู่มือการใช้งาน', sub: 'อ่านบนมือถือ · ดาวน์โหลด PDF' },
       { to: '/report-docs', icon: '📝', color: 'amber', label: 'เอกสารเสนอลงนาม', sub: [pending.value && `รอท่านลงนาม ${pending.value} ฉบับ`, returned.value && `ถูกส่งกลับแก้ไข ${returned.value} ฉบับ`].filter(Boolean).join(' · ') || 'ดู สร้าง และลงนามเอกสาร', badge: pending.value + returned.value },
       viewAll.value && { to: '/executive', icon: '📈', color: 'blue', label: 'รายงานผู้บริหาร', sub: 'สรุปภาพรวม 4 รูปแบบ' },
       ['hr', 'activity', 'executive', 'dept_head', 'admin'].includes(u.role) && { to: '/my-backup', icon: '📦', color: 'teal', label: 'สำรองข้อมูลงานของฉัน', sub: 'ดาวน์โหลด Excel เก็บไว้เอง' },

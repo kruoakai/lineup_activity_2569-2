@@ -52,6 +52,7 @@
         <label class="field"><span>บทบาท</span>
           <select v-model="form.role"><option v-for="(l, k) in ROLE" :key="k" :value="k">{{ l }}</option></select></label>
         <label class="field"><span>ตำแหน่ง / วิทยฐานะ</span><input v-model="form.position_title" maxlength="150" /></label>
+        <label class="field"><span>คำเรียก (ผู้บริหาร) — น้องแถวดีใช้ทักทาย เช่น ท่านผู้อำนวยการ · เว้นว่าง = เรียกตามชื่อ</span><input v-model="form.honorific" maxlength="100" placeholder="เช่น ท่านรองฝ่ายวิชาการ" /></label>
         <label class="field"><span>หน่วยงานในแบบรายงาน (เว้นว่าง = ตามแผนก)</span><input v-model="form.report_group" placeholder="เช่น เจ้าพนักงานราชการ" /></label>
         <label class="row"><input v-model="form.can_proxy" type="checkbox" /> ครูผู้รับมอบหมายให้เช็กชื่อแทนในแผนก (ถาวร)</label>
         <label v-if="form.proxy_until" class="row small"><input v-model="form.revoke_temp_proxy" type="checkbox" /> ยกเลิกสิทธิ์ตัวแทนชั่วคราว (ถึง {{ new Date(form.proxy_until).toLocaleString('th-TH') }})</label>
@@ -128,7 +129,7 @@ function edit(u) {
     id: u.id, full_name: u.full_name || '', employee_code: u.employee_code || '', email: u.email || '',
     department_id: u.department_id ?? null, role: u.role || 'staff', can_proxy: !!u.can_proxy,
     must_assemble: u.must_assemble === undefined ? true : !!u.must_assemble, active: u.active === undefined ? true : !!u.active,
-    position_title: u.position_title || '', report_group: u.report_group || '', proxy_until: u.proxy_until || null, revoke_temp_proxy: false,
+    position_title: u.position_title || '', honorific: u.honorific || '', report_group: u.report_group || '', proxy_until: u.proxy_until || null, revoke_temp_proxy: false,
   };
 }
 

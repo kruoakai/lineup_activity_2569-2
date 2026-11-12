@@ -45,6 +45,7 @@
       <p class="small muted center" style="margin:0">ไม่ติ๊ก "จำฉันไว้" = ออกจากระบบเมื่อปิดเบราว์เซอร์ (เหมาะกับเครื่องส่วนกลาง)</p>
     </form>
     <!-- ติดตั้งแอปได้ตั้งแต่ก่อนเข้าสู่ระบบ (มือถือ) -->
+    <router-link to="/manuals" class="manual-link">📖 คู่มือการใช้งาน</router-link>
     <InstallApp class="login-install" />
     <Credits />
   </div>
@@ -105,6 +106,8 @@ async function submit() {
 <style scoped>
 .login { max-width: 400px; margin: 7vh auto 0; text-align: center; padding: 0 4px; }
 .login-install { text-align: left; margin-top: 14px; }
+.manual-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--brand-2); font-weight: 700; text-decoration: none; }
+.manual-link:hover { border-color: var(--brand-2); }
 .login form { text-align: left; margin-top: 18px; }
 .fld label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
 .ibox { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 6px; border-radius: 12px;

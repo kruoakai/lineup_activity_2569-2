@@ -80,6 +80,7 @@ let rec = null;
 const charState = computed(() => (listening.value ? 'listening' : busy.value ? 'thinking' : talking.value ? 'talking' : 'idle'));
 const fabState = computed(() => (talking.value ? 'talking' : 'idle'));
 const hello = computed(() => {
+  if (auth.user?.honorific) return auth.user.honorific;
   const n = String(auth.user?.full_name || '').replace(/^(นาย|นางสาว|นาง|ว่าที่ร้อยตรี|ดร\.)\s*/, '').split(/\s+/)[0];
   return n ? (n.startsWith('ครู') ? n : `คุณครู${n}`) : '';
 });
