@@ -36,6 +36,18 @@ test('ตรวจก่อน: จับคู่ชื่อตรงและ
   expect((await h.db.query('SELECT employee_code FROM users WHERE id = ?', [ids.a]))[0].employee_code).toBe('475');
 });
 
+test('สร้างบัญชีที่ขาด + ระงับบัญชีที่ไม่อยู่ในไฟล์ โดยยังไม่เปลี่ยนรหัสคนเดิม', async () => {
+  const r = await apply(await plan(MAP), { recode: false, createMissing: true, suspend: ['477'] });
+  expect(r).toEqual({ created: 1, suspended: 1, recoded: 0 });
+  const [n] = await h.db.query("SELECT full_name, staff_type, role, active, must_change_password FROM users WHERE employee_code = 'sg002'");
+  expect(n).toEqual({ full_name: 'ไม่มี บัญชี', staff_type: 'temp_guard', role: 'staff', active: 1, must_change_password: 1 });
+  expect((await h.db.query('SELECT active FROM users WHERE id = ?', [ids.c]))[0].active).toBe(0);
+  expect((await h.db.query('SELECT employee_code FROM users WHERE id = ?', [ids.a]))[0].employee_code).toBe('475');
+  // รันซ้ำไม่สร้างซ้ำ · รหัสที่จะระงับไม่มีจริง → ยกเลิกทั้งหมด
+  expect((await apply(await plan(MAP), { recode: false, createMissing: true })).created).toBe(0);
+  await expect(apply(await plan(MAP), { recode: false, suspend: ['999'] })).rejects.toThrow('ไม่พบบางรหัส');
+});
+
 test('แก้จริง: รหัสใหม่ + คำเรียก · login ด้วยรหัสใหม่ (ตัวใหญ่/เล็กได้) รหัสผ่านเดิม · รหัสเดิมใช้ไม่ได้', async () => {
   await apply(await plan(MAP));
   const [a] = await h.db.query('SELECT employee_code, honorific FROM users WHERE id = ?', [ids.a]);

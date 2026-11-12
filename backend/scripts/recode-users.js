@@ -1,11 +1,24 @@
 // เปลี่ยนรหัสผู้ใช้ (username สำหรับ login) ตามตารางเทียบรหัสบุคลากร
 // ใช้:  node scripts/recode-users.js <mapping.json>            → ตรวจอย่างเดียว (ไม่แก้ฐานข้อมูล) พิมพ์รายงาน
-//       node scripts/recode-users.js <mapping.json> --apply    → แก้จริงในทรานแซกชันเดียว
+//       … --create-missing --apply   สร้างบัญชีให้คนในไฟล์ที่ยังไม่มีบัญชี (username ตามไฟล์ รหัสผ่านเริ่มต้น ต้องเปลี่ยนตอนเข้าครั้งแรก)
+//       … --suspend=475,411 --apply  ระงับบัญชีตามรหัส (ออกจากระบบทุกเครื่อง)
+//       … --recode --apply           เปลี่ยนรหัสคนที่จับคู่ได้เป็น username ใหม่ + คำเรียกผู้บริหาร
+//       ทุกอย่างที่สั่งทำในทรานแซกชันเดียว (สำเร็จทั้งหมดหรือไม่ทำเลย)
 // mapping.json = [{ "no": 1, "old": "ผบ01", "username": "ad001", "name": "นางสาว…", "group": "ผู้บริหาร", "honorific": "ท่านผู้อำนวยการ" }, …]
 // จับคู่ด้วยชื่อ-สกุล (ตัดคำนำหน้า) ตรงกันก่อน ไม่ตรงจึงใช้ชื่อที่คล้ายที่สุด (≥ 0.85 และไม่ซ้ำคนอื่น)
 // ไฟล์ mapping มีข้อมูลบุคคล — ห้าม commit ลบทิ้งหลังใช้
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 const db = require('../src/db');
+const passwords = require('../src/services/passwords');
+const tokens = require('../src/services/tokens');
+
+// กลุ่มบุคลากรในไฟล์ → ประเภทบุคลากร (ข้อ 1 ของรายงานประจำวัน)
+const GROUP_TYPE = {
+  'ผู้บริหาร': 'executive', 'ข้าราชการครู': 'gov_teacher', 'ครูผู้ช่วย': 'assistant_teacher', 'ครูอัตราจ้าง': 'temp_teacher',
+  'เจ้าหน้าที่': 'temp_officer', 'นักการภารโรง': 'temp_janitor', 'พนักงานขับรถ (พขร.)': 'temp_driver', 'ยาม': 'temp_guard',
+  'นักศึกษาฝึกสอน': 'trainee',
+};
 
 const TITLE = /^(นางสาว|นาง|นาย|ว่าที่ร้อยตรีหญิง|ว่าที่ร้อยตรี|ว่าที่ ร\.ต\.|ดร\.|น\.ส\.)\s*/;
 const norm = (n) => String(n || '').trim().replace(TITLE, '').replace(/\s+/g, ' ').trim();
@@ -73,9 +86,23 @@ function report(p) {
   }
 }
 
-async function apply(p) {
+async function apply(p, { recode = true, createMissing = false, suspend = [] } = {}) {
   if (p.clashes.length) throw new Error('มีรหัสชนกัน — ยกเลิก ไม่แก้ไขใด ๆ');
+  const existing = new Set(p.users.map((u) => String(u.employee_code).toLowerCase()));
+  const toCreate = createMissing ? p.notFound.map((x) => x.r).filter((r) => !existing.has(String(r.username).toLowerCase())) : [];
+  const want = suspend.map((c) => String(c).toLowerCase());
+  const toSuspend = p.users.filter((u) => want.includes(String(u.employee_code).toLowerCase()));
+  if (toSuspend.length !== want.length) throw new Error(`ไม่พบบางรหัสที่จะระงับ: ${suspend.join(',')}`);
+  const hash = toCreate.length ? await bcrypt.hash(passwords.initial(), 10) : null;
   await db.transaction(async (t) => {
+    for (const r of toCreate) {
+      await t.query(
+        `INSERT INTO users (employee_code, full_name, staff_type, role, must_assemble, active, password_hash, must_change_password)
+         VALUES (?, ?, ?, 'staff', 1, 1, ?, 1)`,
+        [String(r.username).trim().toLowerCase(), norm(r.name), GROUP_TYPE[r.group] || null, hash]);
+    }
+    for (const u of toSuspend) await t.query('UPDATE users SET active = 0 WHERE id = ?', [u.id]);
+    if (!recode) return;
     // เปลี่ยนเป็นรหัสชั่วคราวก่อน กันชนกับรหัสใหม่ของคนอื่นระหว่างทาง
     for (const m of p.matched) await t.query('UPDATE users SET employee_code = ? WHERE id = ?', [`__tmp_${m.u.id}`, m.u.id]);
     for (const m of p.matched) {
@@ -83,17 +110,29 @@ async function apply(p) {
       if (m.r.honorific) await t.query('UPDATE users SET honorific = ? WHERE id = ?', [String(m.r.honorific).trim().slice(0, 100), m.u.id]);
     }
   });
-  console.log(`\n✓ เปลี่ยนรหัสแล้ว ${p.matched.length} คน (รหัสผ่านเดิมใช้ต่อได้)`);
+  for (const u of toSuspend) await tokens.revokeAllForUser(u.id);
+  if (toCreate.length) console.log(`\n✓ สร้างบัญชีใหม่ ${toCreate.length} คน (รหัสผ่านเริ่มต้นเดียวกับบัญชีอื่น ต้องเปลี่ยนตอนเข้าครั้งแรก): ${toCreate.map((r) => r.username).join(', ')}`);
+  if (toSuspend.length) console.log(`✓ ระงับบัญชี ${toSuspend.length} คน: ${toSuspend.map((u) => `${u.employee_code} ${u.full_name}`).join(', ')}`);
+  if (recode) console.log(`✓ เปลี่ยนรหัสแล้ว ${p.matched.length} คน (รหัสผ่านเดิมใช้ต่อได้)`);
+  return { created: toCreate.length, suspended: toSuspend.length, recoded: recode ? p.matched.length : 0 };
 }
 
 async function main() {
-  const [file, flag] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const file = args.find((a) => !a.startsWith('--'));
   if (!file) throw new Error('ระบุไฟล์ mapping.json');
+  const opt = {
+    recode: args.includes('--recode'),
+    createMissing: args.includes('--create-missing'),
+    suspend: (args.find((a) => a.startsWith('--suspend=')) || '').replace('--suspend=', '').split(',').filter(Boolean),
+  };
   const mapping = JSON.parse(fs.readFileSync(file, 'utf8'));
   const p = await plan(mapping);
   report(p);
-  if (flag === '--apply') await apply(p);
-  else console.log('\n(ตรวจอย่างเดียว — ยังไม่แก้ไขฐานข้อมูล ใส่ --apply เพื่อเปลี่ยนจริง)');
+  const todo = [opt.recode && 'เปลี่ยนรหัส', opt.createMissing && 'สร้างบัญชีที่ขาด', opt.suspend.length && `ระงับ ${opt.suspend.join(',')}`].filter(Boolean);
+  if (!todo.length) { console.log('\n(ตรวจอย่างเดียว — ไม่ได้สั่งให้ทำอะไร)'); return; }
+  if (args.includes('--apply')) await apply(p, opt);
+  else console.log(`\n(ตรวจอย่างเดียว — จะทำ: ${todo.join(' · ')} — ใส่ --apply เพื่อทำจริง)`);
 }
 
 module.exports = { plan, apply, norm, similarity };
