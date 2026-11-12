@@ -15,8 +15,12 @@
         </div>
         <button type="button" class="ic" :aria-pressed="speakOn" :title="speakOn ? 'ปิดเสียงตอบ' : 'เปิดเสียงตอบ'" @click="toggleSpeak">
           {{ speakOn ? '🔊' : '🔇' }}</button>
-        <button type="button" class="ic" title="เริ่มคุยใหม่" aria-label="เริ่มคุยใหม่" @click="reset">↺</button>
-        <button type="button" class="ic" aria-label="ปิดหน้าต่างแชต" @click="close">✕</button>
+        <button type="button" class="ic" title="เริ่มคุยใหม่" aria-label="เริ่มคุยใหม่" @click="reset">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 1 0 2.6-5.9M4 4v5h5" /></svg>
+        </button>
+        <button type="button" class="ic close" title="ปิด" aria-label="ปิดหน้าต่างแชต" @click="close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
       </header>
 
       <div ref="scroller" class="msgs" aria-live="polite">
@@ -253,7 +257,10 @@ onUnmounted(() => { window.removeEventListener('keydown', onKey); stopSpeak(); r
 .hd { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: linear-gradient(90deg, #ffe4ee, #e6f0fa); color: #1c2430; }
 .hd b { display: block; font-size: 1.05rem; }
 .hd small { color: #6b7684; font-size: .78rem; }
-.ic { width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .7); cursor: pointer; font-size: 1rem; }
+/* ปุ่มบนแถบหัว: กำหนดสีเอง ไม่พึ่งสีปุ่มของเครื่อง (โหมดมืดบนมือถือทำให้ไอคอนจางจนมองไม่เห็น) */
+.ic { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 1.5px solid #c9d6e6; background: #fff; color: #1d4e89; cursor: pointer; font-size: 1.05rem; line-height: 1; box-shadow: 0 1px 3px rgba(29, 78, 137, .15); -webkit-tap-highlight-color: transparent; }
+.ic:active { transform: scale(.94); background: #eef4fb; }
+.ic.close { background: #1d4e89; border-color: #1d4e89; color: #fff; }
 .msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .m { max-width: 86%; position: relative; }
 .m p { margin: 0; }
