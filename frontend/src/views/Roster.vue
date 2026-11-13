@@ -61,7 +61,7 @@
     <ul class="list card">
       <li v-for="p in shown" :key="p.user_id" @click="open(p)">
         <div class="main">
-          <strong>{{ p.full_name }}</strong>
+          <strong>{{ p.display_name || p.full_name }}</strong>
           <span class="small muted">
             {{ p.department_name }}
             <template v-if="p.status"> · {{ METHOD[p.method] }} {{ thaiTime(p.checked_at) }}

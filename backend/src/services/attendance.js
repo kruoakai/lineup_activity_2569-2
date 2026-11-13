@@ -365,9 +365,9 @@ async function roster({ day, departmentId, status, search }) {
   else if (status === 'flagged') where.push('a.flagged = 1');
   else if (status) { where.push('a.status = ?'); params.push(status); }
   return db.query(
-    `SELECT u.id AS user_id, u.employee_code, u.full_name, u.department_id, d.name AS department_name,
+    `SELECT u.id AS user_id, u.employee_code, u.full_name, CONCAT(u.name_prefix, u.full_name) AS display_name, u.department_id, d.name AS department_name,
             a.id AS attendance_id, a.status, a.method, a.checked_at, a.distance_m, a.in_zone, a.qr_ok,
-            a.flagged, a.flag_reason, a.note, a.is_demo, cb.full_name AS checked_by_name,
+            a.flagged, a.flag_reason, a.note, a.is_demo, CONCAT(cb.name_prefix, cb.full_name) AS checked_by_name,
             (SELECT COUNT(*) FROM attendance_photos p WHERE p.attendance_id = a.id) AS photo_count, u.avatar_path IS NOT NULL AS has_avatar
        FROM users u
        LEFT JOIN departments d ON d.id = u.department_id

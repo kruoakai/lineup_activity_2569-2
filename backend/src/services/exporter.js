@@ -52,13 +52,13 @@ function addSummarySheets(wb, rep) {
   ov.getColumn(1).font = { bold: true };
 
   const counts = COUNT_COLS.map(([k, h]) => [k, h, k === 'rate' ? 16 : 12]);
-  sheet(wb, 'รายบุคคล', [['employee_code', 'รหัส', 10], ['full_name', 'ชื่อ-สกุล', 30], ['department_name', 'แผนก', 26], ['unit_name', 'หน่วยงาน (แบบรายงาน)', 30], ...counts], rep.users);
+  sheet(wb, 'รายบุคคล', [['employee_code', 'รหัส', 10], ['display_name', 'ชื่อ-สกุล', 30], ['department_name', 'แผนก', 26], ['unit_name', 'หน่วยงาน (แบบรายงาน)', 30], ...counts], rep.users);
   sheet(wb, 'รายแผนก', [['department_name', 'แผนก', 30], ['members', 'จำนวนคน', 10], ...counts], rep.departments);
   sheet(wb, 'รายหน่วยงาน', [['unit_name', 'หน่วยงาน/งาน', 34], ['members', 'จำนวนคน', 10], ...counts], rep.units || []);
   sheet(wb, 'รายวัน', [['day', 'วันที่', 12], ...counts], rep.trend);
   if (rep.missing) {
     const MISS = { absent: 'ขาด', pending: 'รอตรวจสอบ', not_checked: 'ยังไม่เช็ก' };
-    sheet(wb, 'ผู้ไม่เข้าแถว', [['day', 'วันที่', 12], ['employee_code', 'รหัส', 10], ['full_name', 'ชื่อ-สกุล', 30], ['department_name', 'แผนก', 28], ['status', 'สถานะ', 14]],
+    sheet(wb, 'ผู้ไม่เข้าแถว', [['day', 'วันที่', 12], ['employee_code', 'รหัส', 10], ['display_name', 'ชื่อ-สกุล', 30], ['department_name', 'แผนก', 28], ['status', 'สถานะ', 14]],
       rep.missing.map((m) => ({ ...m, status: MISS[m.status] || m.status })));
   }
 }
@@ -75,8 +75,8 @@ async function fullWorkbook({ from, to }) {
   const rep = await reports.summary({ from, to, scope: { all: true } });
   const wb = await summaryWorkbook(rep);
   const rows = await db.query(
-    `SELECT a.day, u.employee_code, u.full_name, COALESCE(d.name, '') AS department_name, a.status, a.method,
-            a.checked_at, cb.full_name AS checked_by_name, a.distance_m, a.in_zone, a.qr_ok, a.flagged, a.flag_reason, a.note,
+    `SELECT a.day, u.employee_code, CONCAT(u.name_prefix, u.full_name) AS full_name, COALESCE(d.name, '') AS department_name, a.status, a.method,
+            a.checked_at, CONCAT(cb.name_prefix, cb.full_name) AS checked_by_name, a.distance_m, a.in_zone, a.qr_ok, a.flagged, a.flag_reason, a.note,
             a.is_demo, (SELECT COUNT(*) FROM attendance_photos p WHERE p.attendance_id = a.id) AS photos
        FROM attendance a JOIN users u ON u.id = a.user_id LEFT JOIN departments d ON d.id = u.department_id
        JOIN users cb ON cb.id = a.checked_by
@@ -96,7 +96,7 @@ async function fullWorkbook({ from, to }) {
     demo: r.is_demo ? 'ใช่' : '',
   })));
   const users = await db.query(
-    `SELECT u.employee_code, u.full_name, u.email, u.position_title, COALESCE(d.name, '') AS department_name, u.role,
+    `SELECT u.employee_code, CONCAT(u.name_prefix, u.full_name) AS full_name, u.email, u.position_title, COALESCE(d.name, '') AS department_name, u.role,
             u.must_assemble, u.active, u.can_proxy
        FROM users u LEFT JOIN departments d ON d.id = u.department_id ORDER BY d.name, u.full_name`,
   );

@@ -80,9 +80,9 @@ async function signerSteps() {
   for (const n of [1, 2, 3]) {
     const uid = Number(s[`sign_step${n}_user`]);
     if (!uid) throw new HttpError(400, `ยังไม่ได้กำหนดผู้ลงนามลำดับที่ ${n} (เมนูผู้ดูแล → แบบรายงานและผู้ลงนาม)`);
-    const [u] = await db.query('SELECT id, full_name, email, active FROM users WHERE id = ?', [uid]);
+    const [u] = await db.query('SELECT id, name_prefix, full_name, email, active FROM users WHERE id = ?', [uid]);
     if (!u || !u.active) throw new HttpError(400, `ผู้ลงนามลำดับที่ ${n} ไม่พบหรือถูกระงับ`);
-    steps.push({ step: n, title: s[`sign_step${n}_title`], label: s[`sign_step${n}_label`], user_id: u.id, user_name: u.full_name });
+    steps.push({ step: n, title: s[`sign_step${n}_title`], label: s[`sign_step${n}_label`], user_id: u.id, user_name: `${u.name_prefix}${u.full_name}` });
   }
   return steps;
 }
@@ -94,7 +94,7 @@ async function isSigner(userId) {
 
 async function notify(userId, doc, text) {
   if (!mailer.enabled()) return;
-  const [u] = await db.query('SELECT email, full_name FROM users WHERE id = ?', [userId]);
+  const [u] = await db.query('SELECT email, CONCAT(name_prefix, full_name) AS full_name FROM users WHERE id = ?', [userId]);
   if (!u?.email) return;
   const link = `${mailer.appUrl()}/report-docs/${doc.id}`;
   mailer.send({ to: u.email, subject: `${text}: ${doc.title}`, text: `เรียน ${u.full_name}\n\n${text}\n${doc.title}\n\nเปิดเอกสาร: ${link}\n\nระบบเช็กชื่อเข้าแถว วิทยาลัยเทคนิคชัยภูมิ` })
@@ -153,14 +153,14 @@ async function canView(user, doc) {
 
 async function get(user, id) {
   const [row] = await db.query(
-    'SELECT r.*, u.full_name AS created_by_name FROM report_docs r JOIN users u ON u.id = r.created_by WHERE r.id = ?',
+    'SELECT r.*, CONCAT(u.name_prefix, u.full_name) AS created_by_name FROM report_docs r JOIN users u ON u.id = r.created_by WHERE r.id = ?',
     [Number(id)],
   );
   if (!row) throw new HttpError(404, 'ไม่พบเอกสาร');
   const doc = parse(row);
   if (!(await canView(user, doc))) throw new HttpError(403, 'ไม่มีสิทธิ์ดูเอกสารนี้');
   const sigs = await db.query(
-    `SELECT s.id, s.step, s.action, s.signer_id, u.full_name AS signer_name, s.signature_path IS NOT NULL AS has_image,
+    `SELECT s.id, s.step, s.action, s.signer_id, CONCAT(u.name_prefix, u.full_name) AS signer_name, s.signature_path IS NOT NULL AS has_image,
             s.comment, s.decision, s.signed_at
        FROM report_signatures s JOIN users u ON u.id = s.signer_id WHERE s.doc_id = ? ORDER BY s.id`,
     [doc.id],
@@ -265,7 +265,7 @@ async function syncSigners() {
 async function list(user) {
   const rows = await db.query(
     `SELECT r.id, r.kind, r.title, r.period_from, r.period_to, r.steps, r.current_step, r.status, r.is_demo, r.created_by,
-            r.created_at, u.full_name AS created_by_name
+            r.created_at, CONCAT(u.name_prefix, u.full_name) AS created_by_name
        FROM report_docs r JOIN users u ON u.id = r.created_by ORDER BY r.id DESC LIMIT 200`,
   );
   const out = [];
@@ -279,7 +279,7 @@ async function list(user) {
     if (r.status === 'approved') rights.canEdit = false;
     const returnedBy = r.status === 'returned'
       ? (await db.query(
-        "SELECT u.full_name AS name, s.comment FROM report_signatures s JOIN users u ON u.id = s.signer_id WHERE s.doc_id = ? AND s.action = 'return' ORDER BY s.id DESC LIMIT 1",
+        "SELECT CONCAT(u.name_prefix, u.full_name) AS name, s.comment FROM report_signatures s JOIN users u ON u.id = s.signer_id WHERE s.doc_id = ? AND s.action = 'return' ORDER BY s.id DESC LIMIT 1",
         [r.id]))[0] || null
       : null;
     out.push({ ...doc, waitingFor: current?.user_name || null, myTurn: !!current && current.user_id === user.id, returnedBy, ...rights });

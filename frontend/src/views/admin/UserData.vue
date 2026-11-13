@@ -182,7 +182,7 @@ const ACT = {
   create: { label: 'สร้างใหม่', cls: 'ok' }, update: { label: 'แก้ไข', cls: 'info' },
   same: { label: 'ไม่เปลี่ยน', cls: 'muted' }, error: { label: 'ผิดพลาด', cls: 'bad' },
 };
-const FIELD = { full_name: 'ชื่อ', email: 'อีเมล', position_title: 'ตำแหน่ง', staff_type: 'ประเภท', role: 'บทบาท', must_assemble: 'ต้องเข้าแถว', active: 'สถานะ', department: 'แผนก' };
+const FIELD = { name_prefix: 'คำนำหน้า', full_name: 'ชื่อ', email: 'อีเมล', position_title: 'ตำแหน่ง', staff_type: 'ประเภท', role: 'บทบาท', must_assemble: 'ต้องเข้าแถว', active: 'สถานะ', department: 'แผนก' };
 const show = (k, v) => (k === 'staff_type' ? STAFF_SHORT[v] || v || '(ว่าง)' : k === 'role' ? ROLE[v] || v : k === 'must_assemble' ? (v ? 'ใช่' : 'ไม่') : k === 'active' ? (v ? 'ใช้งาน' : 'ระงับ') : v || '(ว่าง)');
 const when = (t) => (t ? new Date(t).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 

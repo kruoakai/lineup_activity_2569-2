@@ -13,7 +13,7 @@
                 <th>{{ printOut.multi ? 'วันที่' : c.k === 'missing' ? 'สถานะ' : 'หมายเหตุ' }}</th></tr></thead>
               <tbody>
                 <tr v-for="(r, ri) in c.rows" :key="r.id">
-                  <td class="n">{{ ri + 1 }}</td><td>{{ r.full_name }}</td><td v-if="!pg.dept">{{ r.department || '-' }}</td>
+                  <td class="n">{{ ri + 1 }}</td><td>{{ r.display_name || r.full_name }}</td><td v-if="!pg.dept">{{ r.department || '-' }}</td>
                   <td v-if="printOut.multi" class="n">{{ r.count }}</td><td>{{ r.note }}</td>
                 </tr>
               </tbody>
@@ -81,7 +81,7 @@
           <span class="small muted mdept">{{ g.dept }} ({{ g.list.length }})</span>
           <button v-for="p in g.list" :key="p.id" type="button" class="mchip" :class="{ pend: p.status === 'pending', sel: picked.includes(p.id) }"
             :title="`แตะเพื่อเลือก ${p.full_name} แล้วตั้งสถานะ`" @click="pickMissing(p)">
-            {{ p.full_name }}<small v-if="p.status === 'pending'"> · รอตรวจสอบ</small></button>
+            {{ p.display_name || p.full_name }}<small v-if="p.status === 'pending'"> · รอตรวจสอบ</small></button>
         </div>
       </div>
       <p v-if="missing.length" class="small muted" style="margin:6px 0 0">แตะชื่อเพื่อเลือก → <b>ตั้งสถานะ</b> (เช่น ลา / ไปราชการ / มา (เช็กชื่อแทน)) · รายชื่อนี้คือข้อ 5 ของรายงาน</p>
@@ -104,7 +104,7 @@
           <li v-for="p in statusList" :key="p.id" :class="{ sel: picked.includes(p.id) }" @click="togglePick(p.id)">
             <input type="checkbox" :checked="picked.includes(p.id)" :aria-label="`เลือก ${p.full_name}`" @click.stop="togglePick(p.id)" />
             <div class="grow pn">
-              <b>{{ p.full_name }}</b>
+              <b>{{ p.display_name || p.full_name }}</b>
               <span class="small muted">{{ p.short || 'ยังไม่กำหนดประเภท' }} · {{ p.department || '-' }}</span>
               <span v-if="p.note && p.status" class="small note">{{ p.note }}</span>
             </div>
@@ -119,7 +119,7 @@
         <p class="small muted" style="margin:0">ข้อมูลจากเครื่องลงเวลา — แตะเพื่อเลือกคนที่ <b>มาลงเวลาเกินเวลากำหนด</b> หรือ <b>ไม่ลงเวลากลับ</b> ของวันนี้ แล้วกดบันทึก</p>
         <ul class="plist">
           <li v-for="p in markList" :key="p.id" class="nohover">
-            <div class="grow pn"><b>{{ p.full_name }}</b><span class="small muted">{{ p.short || '-' }} · {{ p.department || '-' }}</span></div>
+            <div class="grow pn"><b>{{ p.display_name || p.full_name }}</b><span class="small muted">{{ p.short || '-' }} · {{ p.department || '-' }}</span></div>
             <button type="button" class="mk" :class="{ on: marks.late.includes(p.id) }" :aria-pressed="marks.late.includes(p.id)" @click="toggleMark('late', p.id)">มาสาย</button>
             <button type="button" class="mk" :class="{ on: marks.no_signout.includes(p.id) }" :aria-pressed="marks.no_signout.includes(p.id)" @click="toggleMark('no_signout', p.id)">ไม่ลงเวลากลับ</button>
           </li>
@@ -165,7 +165,7 @@
         <ul class="plist">
           <li v-for="p in typeList" :key="p.id" class="nohover">
             <button type="button" class="btn sm edit" :aria-label="`แก้ไขชื่อ/ตำแหน่ง ${p.full_name}`" @click="openEdit(p)">✏️</button>
-            <div class="grow pn"><b>{{ p.full_name }}</b><span class="small muted">{{ p.position_title || '(ไม่มีตำแหน่ง)' }} · {{ p.department || '-' }}</span></div>
+            <div class="grow pn"><b>{{ p.display_name || p.full_name }}</b><span class="small muted">{{ p.position_title || '(ไม่มีตำแหน่ง)' }} · {{ p.department || '-' }}</span></div>
             <select :value="p.staff_type || ''" :aria-label="`ประเภทบุคลากรของ ${p.full_name}`" @change="setType(p, $event.target.value)">
               <option value="">— ยังไม่กำหนด —</option>
               <option v-for="t in meta.staffTypes" :key="t.code" :value="t.code">{{ t.no }} {{ t.label }}</option>
@@ -233,7 +233,8 @@
       <form class="modal stack" role="dialog" aria-modal="true" aria-label="แก้ไขข้อมูลบุคลากร" @submit.prevent="saveEdit">
         <div class="ab-head"><b>แก้ไขข้อมูลบุคลากร</b><button type="button" class="btn sm" @click="edit = null">ปิด</button></div>
         <p class="small muted" style="margin:0">รหัสพนักงาน {{ edit.employee_code }} · {{ edit.department || '-' }}</p>
-        <label class="field"><span>ชื่อ-สกุล (มีคำนำหน้า)</span><input v-model="edit.full_name" maxlength="190" required /></label>
+        <label class="field"><span>คำนำหน้า</span><input v-model="edit.name_prefix" maxlength="50" list="prefix-list" placeholder="นาย / นาง / นางสาว / ว่าที่ ร.ต." /><datalist id="prefix-list"><option v-for="x in ['นาย','นาง','นางสาว','ว่าที่ ร.ต.','ดร.']" :key="x" :value="x" /></datalist></label>
+        <label class="field"><span>ชื่อ-สกุล (ไม่ต้องใส่คำนำหน้า)</span><input v-model="edit.full_name" maxlength="190" required /></label>
         <label class="field"><span>ตำแหน่ง</span><input v-model="edit.position_title" maxlength="150" placeholder="เช่น ครู, ครูชำนาญการพิเศษ, รองผู้อำนวยการ" /></label>
         <label class="field"><span>ประเภทบุคลากร</span>
           <select v-model="edit.staff_type">
@@ -518,7 +519,7 @@ const byDeptName = (a, b) => (a.department || '').localeCompare(b.department || 
 function catRows(k) {
   if (printMode.value !== 'day') {
     return (rangeData.value?.people || []).filter((p) => p[k].length)
-      .map((p) => ({ id: p.id, full_name: p.full_name, department: p.department, count: p[k].length, note: dateList(p[k]) }))
+      .map((p) => ({ id: p.id, full_name: p.full_name, display_name: p.display_name, department: p.department, count: p[k].length, note: dateList(p[k]) }))
       .sort((a, b) => b.count - a.count || byDeptName(a, b));
   }
   const ps = people.value;
@@ -558,27 +559,28 @@ async function doPrint() {
 }
 
 // ---------- แก้ไขข้อมูลบุคลากร ----------
-const FIELD = { full_name: 'ชื่อ', position_title: 'ตำแหน่ง', staff_type: 'ประเภท' };
+const FIELD = { name_prefix: 'คำนำหน้า', full_name: 'ชื่อ', position_title: 'ตำแหน่ง', staff_type: 'ประเภท' };
 const showVal = (k, v) => (k === 'staff_type' ? meta.value.staffTypes.find((t) => t.code === v)?.short || '(ว่าง)' : v || '(ว่าง)');
 const edit = ref(null);
 const imp = ref({ name: '', file: '', plan: null });
 const impRows = computed(() => (imp.value.plan?.rows || []).filter((r) => r.action !== 'same').slice(0, 500));
 
 function openEdit(p) {
-  edit.value = { id: p.id, employee_code: p.employee_code, department: p.department, full_name: p.full_name, position_title: p.position_title || '', staff_type: p.staff_type || '' };
+  edit.value = { id: p.id, employee_code: p.employee_code, department: p.department, name_prefix: p.name_prefix || '', full_name: p.full_name, position_title: p.position_title || '', staff_type: p.staff_type || '' };
 }
 function saveEdit() {
   const e = edit.value;
   return run(async () => {
-    const r = await api(`/api/hr/users/${e.id}`, { method: 'PATCH', body: { full_name: e.full_name, position_title: e.position_title, staff_type: e.staff_type || null } });
+    const r = await api(`/api/hr/users/${e.id}`, { method: 'PATCH', body: { name_prefix: e.name_prefix, full_name: e.full_name, position_title: e.position_title, staff_type: e.staff_type || null } });
     const p = people.value.find((x) => x.id === e.id);
     if (p) {
-      Object.assign(p, { full_name: e.full_name.trim().replace(/\s+/g, ' '), position_title: e.position_title.trim(), staff_type: e.staff_type || null });
+      const name = r.user || { name_prefix: e.name_prefix.trim(), full_name: e.full_name.trim() };
+      Object.assign(p, { ...name, display_name: `${name.name_prefix || ''}${name.full_name}`, position_title: e.position_title.trim(), staff_type: e.staff_type || null });
       p.short = meta.value.staffTypes.find((t) => t.code === e.staff_type)?.short || p.position_title || '';
     }
     edit.value = null;
     preview.value = null;
-    message.value = r.changed ? `บันทึกข้อมูลของ ${e.full_name.trim()} แล้ว` : 'ไม่มีข้อมูลที่เปลี่ยน';
+    message.value = r.changed ? `บันทึกข้อมูลของ ${p?.display_name || e.full_name.trim()} แล้ว` : 'ไม่มีข้อมูลที่เปลี่ยน';
   });
 }
 const peopleExport = () => run(() => download('/api/hr/people/export.xlsx', `ข้อมูลบุคลากร-${today.value}.xlsx`));

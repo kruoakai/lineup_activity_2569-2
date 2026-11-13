@@ -37,8 +37,8 @@ const t = (v) => (v ? `${clock.bangkok(new Date(v)).day} ${clock.bangkok(new Dat
 
 async function hrSheets(wb, from, to) {
   const st = await db.query(
-    `SELECT a.day, u.employee_code, u.full_name, u.staff_type, COALESCE(d.name, '') AS department, a.status, a.leave_type,
-            a.note, a.method, cb.full_name AS by_name, a.checked_at
+    `SELECT a.day, u.employee_code, CONCAT(u.name_prefix, u.full_name) AS full_name, u.staff_type, COALESCE(d.name, '') AS department, a.status, a.leave_type,
+            a.note, a.method, CONCAT(cb.name_prefix, cb.full_name) AS by_name, a.checked_at
        FROM attendance a JOIN users u ON u.id = a.user_id LEFT JOIN departments d ON d.id = u.department_id
        JOIN users cb ON cb.id = a.checked_by
       WHERE a.day BETWEEN ? AND ? AND a.status IN ('official','policy','leave') ORDER BY a.day, u.full_name`, [from, to]);
@@ -50,7 +50,7 @@ async function hrSheets(wb, from, to) {
     status: r.status === 'leave' ? LEAVE[r.leave_type] || 'ลา' : exporter.STATUS[r.status],
   })));
   const marks = await db.query(
-    `SELECT m.day, m.kind, u.employee_code, u.full_name, u.staff_type, cb.full_name AS by_name, m.created_at
+    `SELECT m.day, m.kind, u.employee_code, CONCAT(u.name_prefix, u.full_name) AS full_name, u.staff_type, CONCAT(cb.name_prefix, cb.full_name) AS by_name, m.created_at
        FROM hr_marks m JOIN users u ON u.id = m.user_id JOIN users cb ON cb.id = m.created_by
       WHERE m.day BETWEEN ? AND ? ORDER BY m.day, m.kind, u.full_name`, [from, to]);
   exporter.sheet(wb, 'มาสาย-ไม่ลงเวลากลับ', [
@@ -58,7 +58,7 @@ async function hrSheets(wb, from, to) {
     ['type', 'ประเภทบุคลากร', 20], ['by_name', 'ผู้บันทึก', 24], ['at', 'บันทึกเมื่อ', 18],
   ], marks.map((r) => ({ ...r, kind: r.kind === 'late' ? 'มาลงเวลาเกินเวลากำหนด' : 'ไม่ลงเวลากลับ', type: BY_CODE.get(r.staff_type)?.short || '', at: t(r.created_at) })));
   const people = await db.query(
-    `SELECT u.employee_code, u.full_name, u.position_title, u.staff_type, COALESCE(d.name, '') AS department, u.active
+    `SELECT u.employee_code, CONCAT(u.name_prefix, u.full_name) AS full_name, u.position_title, u.staff_type, COALESCE(d.name, '') AS department, u.active
        FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.role <> 'admin' OR u.staff_type IS NOT NULL
       ORDER BY u.full_name`);
   exporter.sheet(wb, 'ประเภทบุคลากร', [
@@ -69,8 +69,8 @@ async function hrSheets(wb, from, to) {
 
 async function docsSheet(wb, from, to, title, kind) {
   const docs = await db.query(
-    `SELECT r.id, r.kind, r.title, r.period_from, r.status, r.current_step, r.steps, r.created_at, u.full_name AS creator,
-            (SELECT GROUP_CONCAT(CONCAT(s.step, ':', su.full_name) ORDER BY s.step SEPARATOR ' · ') FROM report_signatures s
+    `SELECT r.id, r.kind, r.title, r.period_from, r.status, r.current_step, r.steps, r.created_at, CONCAT(u.name_prefix, u.full_name) AS creator,
+            (SELECT GROUP_CONCAT(CONCAT(s.step, ':', su.name_prefix, su.full_name) ORDER BY s.step SEPARATOR ' · ') FROM report_signatures s
               JOIN users su ON su.id = s.signer_id WHERE s.doc_id = r.id AND s.action = 'sign') AS signed
        FROM report_docs r JOIN users u ON u.id = r.created_by
       WHERE r.period_from BETWEEN ? AND ?${kind ? ' AND r.kind = ?' : ''} ORDER BY r.period_from, r.id`, kind ? [from, to, kind] : [from, to]);
@@ -82,8 +82,8 @@ async function docsSheet(wb, from, to, title, kind) {
 
 async function activitySheets(wb, from, to) {
   const rows = await db.query(
-    `SELECT a.day, u.employee_code, u.full_name, COALESCE(d.name, '') AS department, a.status, a.leave_type, a.method,
-            a.checked_at, cb.full_name AS by_name, a.distance_m, a.flagged, a.flag_reason, a.note, a.is_demo
+    `SELECT a.day, u.employee_code, CONCAT(u.name_prefix, u.full_name) AS full_name, COALESCE(d.name, '') AS department, a.status, a.leave_type, a.method,
+            a.checked_at, CONCAT(cb.name_prefix, cb.full_name) AS by_name, a.distance_m, a.flagged, a.flag_reason, a.note, a.is_demo
        FROM attendance a JOIN users u ON u.id = a.user_id LEFT JOIN departments d ON d.id = u.department_id
        JOIN users cb ON cb.id = a.checked_by
       WHERE a.day BETWEEN ? AND ? ORDER BY a.day, d.name, u.full_name`, [from, to]);

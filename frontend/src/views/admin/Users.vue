@@ -22,7 +22,7 @@
     <ul class="list card">
       <li v-for="u in shown" :key="u.id" @click="edit(u)">
         <div class="main">
-          <strong :style="u.active ? '' : 'text-decoration:line-through'">{{ u.full_name }}</strong>
+          <strong :style="u.active ? '' : 'text-decoration:line-through'">{{ u.name_prefix }}{{ u.full_name }}</strong>
           <span class="small muted">{{ u.employee_code }} · {{ u.department_name || 'ไม่ระบุแผนก' }}</span>
         </div>
         <label v-if="u.active && u.department_id" class="proxy" :class="{ on: u.can_proxy }" title="ให้สิทธิ์เช็กชื่อแทนคนในแผนก" @click.stop>
@@ -37,7 +37,11 @@
     <div v-if="form" class="modal-back" @click.self="form = null">
       <form class="modal stack" @submit.prevent="save">
         <div class="row"><h2 class="grow" style="margin:0">{{ form.id ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้' }}</h2><button type="button" class="btn sm" @click="form = null">ปิด</button></div>
-        <label class="field"><span>ชื่อ-สกุล</span><input v-model="form.full_name" required /></label>
+        <div class="row" style="gap:8px;align-items:flex-end">
+          <label class="field" style="flex:0 0 130px"><span>คำนำหน้า</span><input v-model="form.name_prefix" maxlength="50" list="admin-prefix-list" placeholder="นาย / นางสาว" /></label>
+          <label class="field grow"><span>ชื่อ-สกุล (ไม่ต้องใส่คำนำหน้า)</span><input v-model="form.full_name" required /></label>
+        </div>
+        <datalist id="admin-prefix-list"><option v-for="x in ['นาย', 'นาง', 'นางสาว', 'ว่าที่ ร.ต.', 'ดร.']" :key="x" :value="x" /></datalist>
         <div class="row">
           <label class="field grow"><span>รหัสพนักงาน (ใช้เข้าสู่ระบบ)</span><input v-model="form.employee_code" required /></label>
           <label class="field grow"><span>อีเมล</span><input v-model="form.email" type="email" /></label>
@@ -126,7 +130,7 @@ async function load() {
 
 function edit(u) {
   form.value = {
-    id: u.id, full_name: u.full_name || '', employee_code: u.employee_code || '', email: u.email || '',
+    id: u.id, name_prefix: u.name_prefix || '', full_name: u.full_name || '', employee_code: u.employee_code || '', email: u.email || '',
     department_id: u.department_id ?? null, role: u.role || 'staff', can_proxy: !!u.can_proxy,
     must_assemble: u.must_assemble === undefined ? true : !!u.must_assemble, active: u.active === undefined ? true : !!u.active,
     position_title: u.position_title || '', honorific: u.honorific || '', report_group: u.report_group || '', proxy_until: u.proxy_until || null, revoke_temp_proxy: false,

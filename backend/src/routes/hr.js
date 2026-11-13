@@ -52,20 +52,20 @@ router.patch('/users/:id/staff-type', async (req, res) => {
 // แก้ ชื่อ-สกุล / ตำแหน่ง / ประเภทบุคลากร ทีละคน (ไม่แตะบัญชีผู้ดูแลระบบ)
 router.patch('/users/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const [u] = await db.query('SELECT id, employee_code, full_name, position_title, staff_type, role FROM users WHERE id = ?', [id]);
+  const [u] = await db.query('SELECT id, employee_code, name_prefix, full_name, position_title, staff_type, role FROM users WHERE id = ?', [id]);
   if (!u) throw new HttpError(404, 'ไม่พบผู้ใช้');
   if (u.role === 'admin') throw new HttpError(403, 'บัญชีผู้ดูแลระบบ แก้ที่หน้าผู้ดูแลระบบ');
   const b = req.body || {};
   const { fields, errors } = userImport.hrFields({
-    full_name: b.full_name, position_title: b.position_title, staff_type: b.staff_type === null ? '' : b.staff_type,
+    name_prefix: b.name_prefix, full_name: b.full_name, position_title: b.position_title, staff_type: b.staff_type === null ? '' : b.staff_type,
   }, { allowClear: true });
   if (errors.length) throw new HttpError(400, errors.join(' · '));
   const changes = {};
   for (const [k, v] of Object.entries(fields)) if ((u[k] ?? '') !== (v ?? '')) changes[k] = v;
-  if (!Object.keys(changes).length) return res.json({ ok: true, changed: 0 });
+  if (!Object.keys(changes).length) return res.json({ ok: true, changed: 0, user: { name_prefix: u.name_prefix, full_name: u.full_name } });
   await db.query('UPDATE users SET ? WHERE id = ?', [{ ...changes, ...(changes.staff_type !== undefined ? { staff_type_demo: 0 } : {}) }, id]);
   await log(req, 'hr.user_update', u.employee_code, Object.fromEntries(Object.keys(changes).map((k) => [k, { from: u[k] ?? '', to: changes[k] }])));
-  res.json({ ok: true, changed: Object.keys(changes).length });
+  res.json({ ok: true, changed: Object.keys(changes).length, user: { name_prefix: changes.name_prefix ?? u.name_prefix, full_name: changes.full_name ?? u.full_name } });
 });
 
 // ---------- Excel: แม่แบบ / ส่งออกเพื่อแก้ / นำเข้า (ชื่อ ตำแหน่ง ประเภท) ----------

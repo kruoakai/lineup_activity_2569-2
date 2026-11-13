@@ -41,8 +41,8 @@ async function dayView(day) {
   const info = await workInfo(day);
   const state = await schedule.windowState();
   const people = await db.query(
-    `SELECT u.id, u.employee_code, u.full_name, u.position_title, u.staff_type, u.must_assemble, d.name AS department,
-            a.status, a.leave_type, a.note, a.method, c.full_name AS checked_by_name
+    `SELECT u.id, u.employee_code, u.name_prefix, u.full_name, CONCAT(u.name_prefix, u.full_name) AS display_name, u.position_title, u.staff_type, u.must_assemble, d.name AS department,
+            a.status, a.leave_type, a.note, a.method, CONCAT(c.name_prefix, c.full_name) AS checked_by_name
        FROM users u LEFT JOIN departments d ON d.id = u.department_id
        LEFT JOIN attendance a ON a.user_id = u.id AND a.day = ?
        LEFT JOIN users c ON c.id = a.checked_by
@@ -79,7 +79,7 @@ async function rangeView(from, to) {
   for (let d = from; d <= end; d = clock.addDays(d, 1)) if ((await workInfo(d)).work) workDays.push(d);
 
   const people = await db.query(
-    `SELECT u.id, u.full_name, u.must_assemble, d.name AS department
+    `SELECT u.id, u.full_name, CONCAT(u.name_prefix, u.full_name) AS display_name, u.must_assemble, d.name AS department
        FROM users u LEFT JOIN departments d ON d.id = u.department_id
       WHERE u.active = 1 AND (u.role <> 'admin' OR u.staff_type IS NOT NULL)`);
   const recs = from <= end ? await db.query(
@@ -88,7 +88,7 @@ async function rangeView(from, to) {
   const byKey = new Map(recs.map((r) => [`${r.user_id}|${r.day}`, r]));
   const work = new Set(workDays);
   const out = new Map(people.map((p) => [p.id, {
-    id: p.id, full_name: p.full_name, department: p.department,
+    id: p.id, full_name: p.full_name, display_name: p.display_name, department: p.department,
     missing: [], late: [], no_signout: [], leave: [], official: [], policy: [],
   }]));
   for (const p of people) {
@@ -200,7 +200,7 @@ async function dailySummary(day) {
   if (!info.work) warnings.push(`วันที่เลือกเป็นวันหยุด (${info.note || info.status})`);
 
   const people = await db.query(
-    `SELECT u.id, u.full_name, u.position_title, u.staff_type, u.staff_type_demo, u.must_assemble, u.role,
+    `SELECT u.id, u.name_prefix, u.full_name, u.position_title, u.staff_type, u.staff_type_demo, u.must_assemble, u.role,
             a.status, a.leave_type, a.note, a.is_demo
        FROM users u LEFT JOIN attendance a ON a.user_id = u.id AND a.day = ?
       WHERE u.active = 1`, [day]);
@@ -221,7 +221,7 @@ async function dailySummary(day) {
   }
   const total = counted.length;
 
-  const item = (p) => ({ name: p.full_name, type: shortOf(p), note: p.note || '' });
+  const item = (p) => ({ name: `${p.name_prefix || ''}${p.full_name}`, type: shortOf(p), note: p.note || '' });
   const list = (filter) => people.filter(filter).sort(byType).map(item);
   const official = list((p) => p.status === 'official');
   const policy = list((p) => p.status === 'policy');
@@ -249,7 +249,7 @@ async function dailySummary(day) {
   }
 
   const marks = await db.query(
-    `SELECT m.kind, m.is_demo, u.full_name, u.position_title, u.staff_type, m.note FROM hr_marks m JOIN users u ON u.id = m.user_id WHERE m.day = ?`, [day]);
+    `SELECT m.kind, m.is_demo, u.name_prefix, u.full_name, u.position_title, u.staff_type, m.note FROM hr_marks m JOIN users u ON u.id = m.user_id WHERE m.day = ?`, [day]);
   const markList = (kind) => marks.filter((m) => m.kind === kind).sort(byType).map(item);
 
   const [y, m, d] = day.split('-').map(Number);

@@ -227,6 +227,19 @@ const MIGRATIONS = [
     // คำเรียกผู้บริหารตามตำแหน่ง เช่น "ท่านผู้อำนวยการ" (น้องแถวดีใช้ทักทาย) ว่าง = เรียกตามชื่อ
     sql: ['ALTER TABLE users ADD COLUMN honorific VARCHAR(100) NULL AFTER position_title'],
   },
+  {
+    id: '2026-11-13-17-name-prefix',
+    // คำนำหน้าชื่อ (นาย / นางสาว …) แสดงในรายงานทั้งหมด — ย้ายคำนำหน้าที่พิมพ์รวมอยู่ในชื่อเดิมมาไว้ช่องนี้
+    sql: ["ALTER TABLE users ADD COLUMN name_prefix VARCHAR(50) NOT NULL DEFAULT '' AFTER employee_code"],
+    after: async () => {
+      const { splitPrefix } = require('../src/services/names');
+      const rows = await db.query("SELECT id, full_name FROM users WHERE name_prefix = ''");
+      for (const r of rows) {
+        const { prefix, name } = splitPrefix(r.full_name);
+        if (prefix) await db.query('UPDATE users SET name_prefix = ?, full_name = ? WHERE id = ?', [prefix, name, r.id]);
+      }
+    },
+  },
 ];
 
 async function migrate() {

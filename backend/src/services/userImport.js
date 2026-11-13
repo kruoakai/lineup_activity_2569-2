@@ -20,12 +20,14 @@ const MAX_ROWS = 2000;
 const ROLE_TH = { staff: 'บุคลากร', dept_head: 'หัวหน้าแผนก', activity: 'เจ้าหน้าที่งานกิจกรรม', hr: 'เจ้าหน้าที่บุคลากร', executive: 'ผู้บริหาร', admin: 'ผู้ดูแลระบบ' };
 const IMPORT_ROLES = ['staff', 'dept_head', 'activity', 'hr', 'executive'];
 const staffTypes = require('./staffTypes');
+const { splitPrefix, cleanPrefix, PREFIXES } = require('./names');
 const YES = ['ใช่', 'ต้อง', 'y', 'yes', 'true', '1', 'ใช้งาน', 'active'];
 const NO = ['ไม่', 'ไม่ใช่', 'ไม่ต้อง', 'n', 'no', 'false', '0', 'ระงับ', 'inactive'];
 
 // คอลัมน์ในแม่แบบ (key ใช้ใน API ด้วย) — alias รองรับไฟล์ที่ส่งออกจากระบบสารบรรณฯ (GDCC e-Office)
 const COLUMNS = [
   { key: 'employee_code', header: 'รหัสพนักงาน*', width: 16, aliases: ['รหัสพนักงาน', 'ชื่อผู้ใช้ (รหัสพนักงาน)', 'employee_code'] },
+  { key: 'name_prefix', header: 'คำนำหน้า', width: 12, aliases: ['คำนำหน้าชื่อ', 'คำนำหน้านาม', 'name_prefix', 'prefix'] },
   { key: 'full_name', header: 'ชื่อ-สกุล*', width: 30, aliases: ['ชื่อ-สกุล', 'ชื่อ - สกุล', 'full_name'] },
   { key: 'email', header: 'อีเมล', width: 30, aliases: ['email'] },
   { key: 'division', header: 'ฝ่าย', width: 28, aliases: ['โครงสร้างระดับที่ 2', 'division'] },
@@ -77,6 +79,12 @@ function normalizeRow(raw) {
   if (typeof raw.employee_code === 'number') r.employee_code = String(raw.employee_code);
   if (!/^[A-Za-z0-9_-]{1,30}$/.test(r.employee_code)) errors.push('รหัสพนักงานต้องเป็นตัวอักษรอังกฤษ/ตัวเลข/-/_ ไม่เกิน 30 ตัว');
   r.full_name = clean(raw.full_name);
+  const sp = splitPrefix(r.full_name);
+  if (sp.prefix) r.full_name = sp.name;
+  const pre = cleanPrefix(raw.name_prefix);
+  if (pre === '-') r.name_prefix = '';
+  else if (pre) r.name_prefix = pre;
+  else if (sp.prefix) r.name_prefix = sp.prefix;
   if (!r.full_name) errors.push('ต้องมีชื่อ-สกุล');
   if (r.full_name.length > 190) errors.push('ชื่อ-สกุลยาวเกิน 190 ตัวอักษร');
   if (raw.email !== undefined) {
@@ -118,7 +126,7 @@ async function parseWorkbook(buffer) {
         const idx = values.findIndex((v) => v && names.includes(v));
         if (idx > 0) m[c.key] = idx;
       }
-      if (m.employee_code && m.full_name) { headerRow = n; map = m; }
+      if (m.employee_code && (m.full_name || m.name_prefix)) { headerRow = n; map = m; }
     });
     if (!map) continue;
     const rows = [];
@@ -136,12 +144,12 @@ async function parseWorkbook(buffer) {
     if (rows.length > MAX_ROWS) throw new HttpError(400, `นำเข้าได้ครั้งละไม่เกิน ${MAX_ROWS} แถว`);
     return rows;
   }
-  throw new HttpError(400, 'ไม่พบหัวตาราง — ต้องมีคอลัมน์ "รหัสพนักงาน" และ "ชื่อ-สกุล" (ดาวน์โหลดแม่แบบจากระบบ)');
+  throw new HttpError(400, 'ไม่พบหัวตาราง — ต้องมีคอลัมน์ "รหัสพนักงาน" และ "ชื่อ-สกุล" (หรือ "คำนำหน้า") (ดาวน์โหลดแม่แบบจากระบบ)');
 }
 
 async function loadState() {
   const users = await db.query(
-    `SELECT u.id, u.employee_code, u.email, u.full_name, u.position_title, u.staff_type, u.role, u.must_assemble, u.active,
+    `SELECT u.id, u.employee_code, u.email, u.name_prefix, u.full_name, u.position_title, u.staff_type, u.role, u.must_assemble, u.active,
             d.name AS department, d.division
        FROM users u LEFT JOIN departments d ON d.id = u.department_id`);
   const depts = await db.query('SELECT id, name, division FROM departments');
@@ -208,6 +216,7 @@ async function plan(rawRows, { actorId, deactivateMissing = false } = {}) {
     }
 
     const target = {
+      name_prefix: row.name_prefix,
       full_name: row.full_name,
       email: row.email,
       position_title: row.position_title,
@@ -282,9 +291,9 @@ async function apply(p) {
         if (r.action === 'create') {
           const d = r.data;
           await t.query(
-            `INSERT INTO users (employee_code, full_name, email, position_title, staff_type, department_id, role, must_assemble, active, password_hash, must_change_password)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [r.employee_code, d.full_name, d.email || null, d.position_title || '', d.staff_type || null, (await deptId(r.dept)) ?? null, d.role, d.must_assemble, d.active, hash]);
+            `INSERT INTO users (employee_code, name_prefix, full_name, email, position_title, staff_type, department_id, role, must_assemble, active, password_hash, must_change_password)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [r.employee_code, d.name_prefix || '', d.full_name, d.email || null, d.position_title || '', d.staff_type || null, (await deptId(r.dept)) ?? null, d.role, d.must_assemble, d.active, hash]);
         } else if (r.action === 'update') {
           const set = {};
           for (const [k, c] of Object.entries(r.changes)) if (k !== 'department') set[k] = c.to;
@@ -329,6 +338,7 @@ function addValidation(ws, deptNames) {
     ws.getCell(`${col('active')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"ใช้งาน,ระงับ"'] };
     if (deptNames) ws.getCell(`${col('department')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [deptNames], showErrorMessage: false };
     ws.getCell(`${col('employee_code')}${r}`).numFmt = '@';
+    ws.getCell(`${col('name_prefix')}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${PREFIXES.join(',')}"`], showErrorMessage: false };
   }
 }
 
@@ -340,7 +350,8 @@ function addGuide(wb, depts) {
     ['', ''],
     ['คอลัมน์', 'วิธีกรอก'],
     ['รหัสพนักงาน*', 'จำเป็น · ใช้เป็นชื่อผู้ใช้เข้าระบบ · ตัวอักษรอังกฤษ/ตัวเลข/-/_ · ถ้ามีในระบบแล้ว = แก้ไขข้อมูลคนนั้น'],
-    ['ชื่อ-สกุล*', 'จำเป็น · เช่น นายสมชาย ใจดี'],
+    ['คำนำหน้า', `ไม่บังคับ · เช่น ${PREFIXES.slice(0, 4).join(' / ')} (แสดงหน้าชื่อในรายงานทั้งหมด) · เว้นว่าง = คงเดิม · พิมพ์ - เพื่อลบ · ถ้าพิมพ์รวมในช่องชื่อ ระบบแยกให้เอง`],
+    ['ชื่อ-สกุล*', 'จำเป็น · เช่น สมชาย ใจดี (ไม่ต้องใส่คำนำหน้า)'],
     ['อีเมล', 'ไม่บังคับ · ใช้รับลิงก์ตั้งรหัสผ่านใหม่ · ห้ามซ้ำกับคนอื่น'],
     ['ฝ่าย', 'ไม่บังคับ · เช่น ฝ่ายบริหารทรัพยากร'],
     ['แผนก/งาน*', 'จำเป็นสำหรับคนใหม่ · พิมพ์ตรงกับชีต "แผนกที่มีในระบบ" · ถ้าพิมพ์ชื่อใหม่ ระบบจะสร้างแผนกให้'],
@@ -383,7 +394,7 @@ async function templateWorkbook() {
   const ws = wb.addWorksheet('รายชื่อบุคลากร', { views: [{ state: 'frozen', ySplit: 1 }] });
   ws.columns = COLUMNS.map((c) => ({ key: c.key, header: c.header, width: c.width }));
   styleHeader(ws, COLUMNS.length);
-  const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', full_name: 'นายสมชาย ใจดี', email: 'somchai@example.com', division: 'ฝ่ายวิชาการ', department: 'เทคโนโลยีสารสนเทศ', position_title: 'ครู', staff_type: 'ครูอัตราจ้าง', role: 'บุคลากร', must_assemble: 'ใช่', active: 'ใช้งาน' });
+  const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', name_prefix: 'นาย', full_name: 'สมชาย ใจดี', email: 'somchai@example.com', division: 'ฝ่ายวิชาการ', department: 'เทคโนโลยีสารสนเทศ', position_title: 'ครู', staff_type: 'ครูอัตราจ้าง', role: 'บุคลากร', must_assemble: 'ใช่', active: 'ใช้งาน' });
   ex.font = { italic: true, color: { argb: 'FF8A94A3' } };
   const depts = await departmentsList();
   addGuide(wb, depts);
@@ -393,7 +404,7 @@ async function templateWorkbook() {
 
 async function exportWorkbook() {
   const rows = await db.query(
-    `SELECT u.employee_code, u.full_name, u.email, d.division, d.name AS department, u.position_title, u.staff_type, u.role,
+    `SELECT u.employee_code, u.name_prefix, u.full_name, u.email, d.division, d.name AS department, u.position_title, u.staff_type, u.role,
             u.must_assemble, u.active, u.must_change_password, u.line_user_id IS NOT NULL AS has_line,
             (SELECT MAX(created_at) FROM refresh_tokens t WHERE t.user_id = u.id) AS last_login
        FROM users u LEFT JOIN departments d ON d.id = u.department_id
@@ -413,7 +424,7 @@ async function exportWorkbook() {
   }
   for (const r of rows) {
     ws.addRow({
-      employee_code: r.employee_code, full_name: r.full_name, email: r.email || '', division: r.division || '', department: r.department || '',
+      employee_code: r.employee_code, name_prefix: r.name_prefix || '', full_name: r.full_name, email: r.email || '', division: r.division || '', department: r.department || '',
       position_title: r.position_title || '', staff_type: staffTypes.BY_CODE.get(r.staff_type)?.short || '', role: ROLE_TH[r.role], must_assemble: r.must_assemble ? 'ใช่' : 'ไม่', active: r.active ? 'ใช้งาน' : 'ระงับ',
       password_state: r.must_change_password ? 'ยังไม่เปลี่ยน (ต้องเปลี่ยนเมื่อเข้าครั้งแรก)' : 'เปลี่ยนแล้ว',
       line: r.has_line ? 'เชื่อมแล้ว' : '',
@@ -429,18 +440,25 @@ async function exportWorkbook() {
 
 // ---------- งานบุคลากร: แก้ ชื่อ-สกุล / ตำแหน่ง / ประเภทบุคลากร ของคนที่มีอยู่แล้ว ----------
 // ไม่สร้างคนใหม่ ไม่เปลี่ยนแผนก บทบาท สถานะบัญชี (เป็นหน้าที่ผู้ดูแลระบบ) และไม่แตะบัญชีผู้ดูแลระบบ
-const HR_FIELDS = { full_name: 'ชื่อ-สกุล', position_title: 'ตำแหน่ง', staff_type: 'ประเภทบุคลากร' };
-const HR_COLUMNS = COLUMNS.filter((c) => ['employee_code', 'full_name', 'position_title', 'staff_type'].includes(c.key));
+const HR_FIELDS = { name_prefix: 'คำนำหน้า', full_name: 'ชื่อ-สกุล', position_title: 'ตำแหน่ง', staff_type: 'ประเภทบุคลากร' };
+const HR_COLUMNS = COLUMNS.filter((c) => ['employee_code', 'name_prefix', 'full_name', 'position_title', 'staff_type'].includes(c.key));
 
 /** ตรวจค่าที่งานบุคลากรแก้ได้ (ใช้ทั้งแก้ทีละคนและนำเข้า Excel) — ช่องที่ไม่ส่งมา/ว่าง = ไม่เปลี่ยน */
 function hrFields(raw, { allowClear = false } = {}) {
   const out = {};
   const errors = [];
   if (raw.full_name !== undefined) {
-    const v = clean(raw.full_name);
+    let v = clean(raw.full_name);
+    const sp = splitPrefix(v);
+    if (sp.prefix) { v = sp.name; if (!cleanPrefix(raw.name_prefix)) out.name_prefix = sp.prefix; }
     if (v.length > 190) errors.push('ชื่อ-สกุลยาวเกิน 190 ตัวอักษร');
     else if (v) out.full_name = v;
     else if (allowClear) errors.push('ต้องมีชื่อ-สกุล');
+  }
+  if (raw.name_prefix !== undefined) {
+    const p = cleanPrefix(raw.name_prefix);
+    if (p === '-' || (!p && allowClear)) out.name_prefix = out.name_prefix ?? '';
+    else if (p) out.name_prefix = p;
   }
   if (raw.position_title !== undefined) {
     const v = clean(raw.position_title).slice(0, 150);
@@ -458,7 +476,7 @@ function hrFields(raw, { allowClear = false } = {}) {
 
 async function hrPlan(rawRows) {
   if (!Array.isArray(rawRows) || !rawRows.length) throw new HttpError(400, 'ไม่มีข้อมูลในไฟล์');
-  const users = await db.query("SELECT id, employee_code, full_name, position_title, staff_type, role, active FROM users");
+  const users = await db.query("SELECT id, employee_code, name_prefix, full_name, position_title, staff_type, role, active FROM users");
   const byCode = new Map(users.map((u) => [u.employee_code.toLowerCase(), u]));
   const seen = new Map();
   const rows = rawRows.map((raw, i) => {
@@ -497,11 +515,12 @@ function hrGuide(wb, withData) {
   const g = wb.addWorksheet('วิธีกรอก');
   g.columns = [{ width: 22 }, { width: 90 }];
   [
-    ['แก้ไขชื่อ-สกุล / ตำแหน่ง / ประเภทบุคลากร — งานบุคลากร', ''],
+    ['แก้ไขคำนำหน้า / ชื่อ-สกุล / ตำแหน่ง / ประเภทบุคลากร — งานบุคลากร', ''],
     ['', ''],
     ['คอลัมน์', 'วิธีกรอก'],
     ['รหัสพนักงาน*', 'จำเป็น · ใช้จับคู่กับคนในระบบ ห้ามแก้ (ถ้าไม่พบ แถวนั้นจะถูกข้าม)'],
-    ['ชื่อ-สกุล', 'พิมพ์ชื่อที่ถูกต้อง เช่น นางสาวสมหญิง ใจดี · เว้นว่าง = คงเดิม'],
+    ['คำนำหน้า', `เช่น ${PREFIXES.slice(0, 4).join(' / ')} (แสดงหน้าชื่อในรายงานทั้งหมด) · เว้นว่าง = คงเดิม · พิมพ์ - เพื่อลบ`],
+    ['ชื่อ-สกุล', 'พิมพ์ชื่อที่ถูกต้อง ไม่ต้องใส่คำนำหน้า เช่น สมหญิง ใจดี · เว้นว่าง = คงเดิม'],
     ['ตำแหน่ง', 'เช่น ครู, ครูชำนาญการพิเศษ, รองผู้อำนวยการ (แสดงในเอกสาร) · เว้นว่าง = คงเดิม'],
     ['ประเภทบุคลากร', `เลือก: ${staffTypes.STAFF_TYPES.map((t) => t.short).join(' / ')} · เว้นว่าง = คงเดิม`],
     ['แผนก/งาน', 'อ่านอย่างเดียว (แก้ไม่มีผล) — ย้ายแผนกแจ้งผู้ดูแลระบบ'],
@@ -527,27 +546,28 @@ async function hrWorkbook(withData) {
   head.height = 24;
   head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   ws.columns.forEach((_, i) => {
-    head.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i === 0 ? 'FF1D4E89' : i === 4 ? 'FF8A94A3' : 'FF4F7CB5' } };
+    head.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i === 0 ? 'FF1D4E89' : i === 5 ? 'FF8A94A3' : 'FF4F7CB5' } };
   });
   let n = 0;
   if (withData) {
     const rows = await db.query(
-      `SELECT u.employee_code, u.full_name, u.position_title, u.staff_type, d.name AS department
+      `SELECT u.employee_code, u.name_prefix, u.full_name, u.position_title, u.staff_type, d.name AS department
          FROM users u LEFT JOIN departments d ON d.id = u.department_id
         WHERE u.active = 1 AND u.role <> 'admin' ORDER BY d.name, u.full_name`);
     for (const r of rows) {
       ws.addRow({ ...r, position_title: r.position_title || '', staff_type: staffTypes.BY_CODE.get(r.staff_type)?.short || '', department: r.department || '' });
     }
     n = rows.length;
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 5 } };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 6 } };
   } else {
-    const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', full_name: 'นางสาวสมหญิง ใจดี', position_title: 'ครูชำนาญการ', staff_type: 'ขรก.ครู', department: '' });
+    const ex = ws.addRow({ employee_code: 'ตัวอย่าง001', name_prefix: 'นางสาว', full_name: 'สมหญิง ใจดี', position_title: 'ครูชำนาญการ', staff_type: 'ขรก.ครู', department: '' });
     ex.font = { italic: true, color: { argb: 'FF8A94A3' } };
   }
   const last = Math.max(n + 1, 300);
   for (let r = 2; r <= last; r += 1) {
     ws.getCell(`A${r}`).numFmt = '@';
-    ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${staffTypes.STAFF_TYPES.map((t) => t.short).join(',')}"`], showErrorMessage: false };
+    ws.getCell(`B${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${PREFIXES.join(',')}"`], showErrorMessage: false };
+    ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${staffTypes.STAFF_TYPES.map((t) => t.short).join(',')}"`], showErrorMessage: false };
   }
   hrGuide(wb, withData);
   return { wb, count: n };
@@ -556,7 +576,7 @@ async function hrWorkbook(withData) {
 /** ข้อมูลผู้ใช้สำหรับ API (ไม่มีข้อมูลรหัสผ่าน) */
 function publicUser(u) {
   return {
-    employee_code: u.employee_code, full_name: u.full_name, email: u.email || null,
+    employee_code: u.employee_code, name_prefix: u.name_prefix || '', full_name: u.full_name, email: u.email || null,
     division: u.division || '', department: u.department || '', position_title: u.position_title || '', staff_type: u.staff_type || null,
     role: u.role, must_assemble: !!u.must_assemble, active: !!u.active, updated_at: u.updated_at,
   };

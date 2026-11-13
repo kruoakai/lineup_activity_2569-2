@@ -18,10 +18,10 @@ async function readXlsx(buf) {
   await wb.xlsx.load(buf);
   return wb;
 }
-async function xlsx(rows) {
+async function xlsx(rows, headers = ['รหัสพนักงาน*', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ประเภทบุคลากร']) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('รายชื่อ');
-  ws.addRow(['รหัสพนักงาน*', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ประเภทบุคลากร']);
+  ws.addRow(headers);
   rows.forEach((r) => ws.addRow(r));
   return (await wb.xlsx.writeBuffer()).toString('base64');
 }
@@ -32,9 +32,10 @@ beforeAll(async () => {
   ids = {
     admin: await h.createUser({ code: 'ADM', name: 'ผู้ดูแล', role: 'admin', mustAssemble: false }),
     hr: await h.createUser({ code: 'HR1', name: 'เจ้าหน้าที่บุคลากร', role: 'hr', mustAssemble: false }),
-    t1: await h.createUser({ code: 'T1', name: 'นายครูหนึ่ง สะกดผิด', dept: it }),
-    t2: await h.createUser({ code: 'T2', name: 'นางครูสอง', dept: it }),
+    t1: await h.createUser({ code: 'T1', name: 'ครูหนึ่ง สะกดผิด', dept: it }),
+    t2: await h.createUser({ code: 'T2', name: 'ครูสอง', dept: it }),
   };
+  await h.db.query("UPDATE users SET name_prefix = 'นาง' WHERE id = ?", [ids.t2]);
   hr = api(await h.login('HR1'));
   adm = api(await h.login('ADM'));
   teacher = api(await h.login('T1'));
@@ -52,11 +53,11 @@ describe('แก้ข้อมูลบุคลากรทีละคน', (
     await hr.patch(`/api/hr/users/${ids.t1}`).send({ full_name: '  ' }).expect(400);
     await hr.patch(`/api/hr/users/${ids.t1}`).send({ staff_type: 'king' }).expect(400);
     const r = await hr.patch(`/api/hr/users/${ids.t1}`).send({ full_name: 'นายครูหนึ่ง  ถูกต้อง', position_title: 'ครูชำนาญการ', staff_type: 'gov_teacher' }).expect(200);
-    expect(r.body.changed).toBe(3);
-    const [u] = await h.db.query('SELECT full_name, position_title, staff_type FROM users WHERE id = ?', [ids.t1]);
-    expect(u).toEqual({ full_name: 'นายครูหนึ่ง ถูกต้อง', position_title: 'ครูชำนาญการ', staff_type: 'gov_teacher' });
-    // ล้างตำแหน่ง / ประเภทได้
-    await hr.patch(`/api/hr/users/${ids.t1}`).send({ full_name: 'นายครูหนึ่ง ถูกต้อง', position_title: '', staff_type: null }).expect(200);
+    expect(r.body.changed).toBe(4); // คำนำหน้าที่พิมพ์รวมกับชื่อ ถูกแยกไปช่องคำนำหน้า
+    const [u] = await h.db.query('SELECT name_prefix, full_name, position_title, staff_type FROM users WHERE id = ?', [ids.t1]);
+    expect(u).toEqual({ name_prefix: 'นาย', full_name: 'ครูหนึ่ง ถูกต้อง', position_title: 'ครูชำนาญการ', staff_type: 'gov_teacher' });
+    // ล้างตำแหน่ง / ประเภทได้ (คำนำหน้าคงไว้)
+    await hr.patch(`/api/hr/users/${ids.t1}`).send({ name_prefix: 'นาย', full_name: 'ครูหนึ่ง ถูกต้อง', position_title: '', staff_type: null }).expect(200);
     const [u2] = await h.db.query('SELECT position_title, staff_type FROM users WHERE id = ?', [ids.t1]);
     expect(u2).toEqual({ position_title: '', staff_type: null });
     const [log] = await h.db.query("SELECT target FROM admin_logs WHERE action = 'hr.user_update' ORDER BY id DESC LIMIT 1");
@@ -69,7 +70,7 @@ describe('Excel: แม่แบบ / ส่งออก / นำเข้า', 
     await teacher.get('/api/hr/people/export.xlsx').expect(403);
     const t = await hr.get('/api/hr/people/template.xlsx').buffer(true).parse(binary).expect(200);
     const tw = await readXlsx(t.body);
-    expect(tw.getWorksheet('รายชื่อบุคลากร').getRow(1).values.slice(1)).toEqual(['รหัสพนักงาน*', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ประเภทบุคลากร', 'แผนก/งาน (อ่านอย่างเดียว)']);
+    expect(tw.getWorksheet('รายชื่อบุคลากร').getRow(1).values.slice(1)).toEqual(['รหัสพนักงาน*', 'คำนำหน้า', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ประเภทบุคลากร', 'แผนก/งาน (อ่านอย่างเดียว)']);
     const e = await hr.get('/api/hr/people/export.xlsx').buffer(true).parse(binary).expect(200);
     const ws = (await readXlsx(e.body)).getWorksheet('รายชื่อบุคลากร');
     const codes = [];
@@ -82,20 +83,23 @@ describe('Excel: แม่แบบ / ส่งออก / นำเข้า', 
     const wb = await readXlsx(e.body);
     const ws = wb.getWorksheet('รายชื่อบุคลากร');
     ws.eachRow((row) => {
-      if (row.getCell(1).value === 'T2') { row.getCell(2).value = 'นางครูสอง แก้แล้ว'; row.getCell(3).value = 'ครู'; row.getCell(4).value = 'ครูอัตราจ้าง'; }
+      if (row.getCell(1).value === 'T2') {
+        expect(row.getCell(2).value).toBe('นาง');
+        row.getCell(3).value = 'ครูสอง แก้แล้ว'; row.getCell(4).value = 'ครู'; row.getCell(5).value = 'ครูอัตราจ้าง';
+      }
     });
     const file = (await wb.xlsx.writeBuffer()).toString('base64');
     const p = await hr.post('/api/hr/people/import/preview').send({ file }).expect(200);
     expect(p.body.summary).toMatchObject({ update: 1, error: 0 });
     expect(p.body.rows.find((r) => r.employee_code === 'T2').changes).toEqual({
-      full_name: { from: 'นางครูสอง', to: 'นางครูสอง แก้แล้ว' }, position_title: { from: '', to: 'ครู' }, staff_type: { from: '', to: 'temp_teacher' },
+      full_name: { from: 'ครูสอง', to: 'ครูสอง แก้แล้ว' }, position_title: { from: '', to: 'ครู' }, staff_type: { from: '', to: 'temp_teacher' },
     });
     await hr.post('/api/hr/people/import').send({ file }).expect(400);
     await hr.post('/api/hr/people/import').send({ file, password: 'wrong' }).expect(403);
     const r = await hr.post('/api/hr/people/import').send({ file, password: PASSWORD }).expect(200);
     expect(r.body.update).toBe(1);
-    const [u] = await h.db.query('SELECT full_name, position_title, staff_type FROM users WHERE id = ?', [ids.t2]);
-    expect(u).toEqual({ full_name: 'นางครูสอง แก้แล้ว', position_title: 'ครู', staff_type: 'temp_teacher' });
+    const [u] = await h.db.query('SELECT name_prefix, full_name, position_title, staff_type FROM users WHERE id = ?', [ids.t2]);
+    expect(u).toEqual({ name_prefix: 'นาง', full_name: 'ครูสอง แก้แล้ว', position_title: 'ครู', staff_type: 'temp_teacher' });
   });
 
   test('แม่แบบกรอกเฉพาะคนที่แก้: ช่องว่าง = คงเดิม · รหัสไม่พบ/ผู้ดูแล/ซ้ำ ถูกข้าม', async () => {
@@ -111,10 +115,26 @@ describe('Excel: แม่แบบ / ส่งออก / นำเข้า', 
     expect(p.body.summary).toMatchObject({ rows: 5, update: 1, error: 4 });
     const t1 = p.body.rows.find((r) => r.employee_code === 'T1' && r.action === 'update');
     expect(t1.changes).toEqual({ position_title: { from: '', to: 'ครูผู้ช่วย' } });
-    expect(t1.full_name).toBe('นายครูหนึ่ง ถูกต้อง');
+    expect(t1.full_name).toBe('ครูหนึ่ง ถูกต้อง');
     await hr.post('/api/hr/people/import').send({ file, password: PASSWORD }).expect(200);
     const [a] = await h.db.query('SELECT full_name FROM users WHERE id = ?', [ids.admin]);
     expect(a.full_name).toBe('ผู้ดูแล');
+  });
+
+  test('คอลัมน์คำนำหน้า: ใส่ / เปลี่ยน / ลบด้วย - · พิมพ์รวมในช่องชื่อแยกให้เอง', async () => {
+    const H = ['รหัสพนักงาน*', 'คำนำหน้า', 'ชื่อ-สกุล'];
+    let p = await hr.post('/api/hr/people/import/preview').send({ file: await xlsx([['HR1', 'นางสาว', '']], H) }).expect(200);
+    expect(p.body.rows[0].changes).toEqual({ name_prefix: { from: '', to: 'นางสาว' } });
+    await hr.post('/api/hr/people/import').send({ file: await xlsx([['HR1', 'นางสาว', '']], H), password: PASSWORD }).expect(200);
+    p = await hr.post('/api/hr/people/import/preview').send({ file: await xlsx([['HR1', '', 'ว่าที่ ร.ต.หญิงเจ้าหน้าที่ บุคลากร']], H) }).expect(200);
+    expect(p.body.rows[0].changes).toEqual({ name_prefix: { from: 'นางสาว', to: 'ว่าที่ ร.ต.หญิง' }, full_name: { from: 'เจ้าหน้าที่บุคลากร', to: 'เจ้าหน้าที่ บุคลากร' } });
+    await hr.post('/api/hr/people/import').send({ file: await xlsx([['HR1', '-', '']], H), password: PASSWORD }).expect(200);
+    const [u] = await h.db.query('SELECT name_prefix, full_name FROM users WHERE id = ?', [ids.hr]);
+    expect(u).toEqual({ name_prefix: '', full_name: 'เจ้าหน้าที่บุคลากร' });
+    // ไฟล์มีแค่ รหัส + คำนำหน้า ก็นำเข้าได้ (ชื่อคงเดิม)
+    const only = await xlsx([['HR1', 'นาง']], ['รหัสพนักงาน*', 'คำนำหน้า']);
+    p = await hr.post('/api/hr/people/import/preview').send({ file: only }).expect(200);
+    expect(p.body.rows[0].changes).toEqual({ name_prefix: { from: '', to: 'นาง' } });
   });
 
   test('ผู้ดูแลระบบใช้ได้ด้วย · ไฟล์ผิดรูปแบบแจ้งชัด', async () => {
@@ -134,7 +154,7 @@ describe('ส่งออกรายงานสรุปการปฏิบ�
     const list = [];
     dw.getWorksheet('รายชื่อ').eachRow((row, n) => { if (n > 1) list.push([row.getCell(2).value, row.getCell(4).value]); });
     expect(list).toContainEqual(['3.1 ลาป่วย', 'นายครูหนึ่ง ถูกต้อง']);
-    expect(list).toContainEqual(['5. ผู้ไม่เข้ากิจกรรมหน้าเสาธง', 'นางครูสอง แก้แล้ว']);
+    expect(list).toContainEqual(['5. ผู้ไม่เข้ากิจกรรมหน้าเสาธง', 'นางครูสอง แก้แล้ว']); // คำนำหน้า + ชื่อ
 
     const m = await hr.get('/api/hr/report/range.xlsx?from=2027-02-01&to=2027-02-28').buffer(true).parse(binary).expect(200);
     const mw = await readXlsx(m.body);

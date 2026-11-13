@@ -2,6 +2,7 @@ const db = require('../db');
 const clock = require('../clock');
 const schedule = require('./schedule');
 const { HttpError } = require('../middleware/auth');
+const { displayName } = require('./names');
 
 const EXCUSED = new Set(['official', 'policy', 'leave']);
 
@@ -21,7 +22,7 @@ async function scopedUsers(scope, departmentId) {
   if (!scope.all) { where.push('u.department_id = ?'); params.push(scope.departmentId); }
   else if (departmentId) { where.push('u.department_id = ?'); params.push(departmentId); }
   return db.query(
-    `SELECT u.id, u.employee_code, u.full_name, u.department_id, COALESCE(d.name, 'ไม่ระบุแผนก') AS department_name,
+    `SELECT u.id, u.employee_code, u.full_name, u.name_prefix, u.department_id, COALESCE(d.name, 'ไม่ระบุแผนก') AS department_name,
             COALESCE(d.division, '') AS division,
             COALESCE(NULLIF(u.report_group, ''), NULLIF(d.report_group, ''), COALESCE(d.name, 'ไม่ระบุแผนก')) AS unit_name,
             CASE WHEN NULLIF(u.report_group, '') IS NULL THEN COALESCE(d.report_order, 999) ELSE 998 END AS unit_order
@@ -82,10 +83,10 @@ async function summary({ from, to, scope, departmentId, withMissing = false }) {
       if (r && r.flagged) flaggedCount += 1;
       for (const c of [uc, dc, gc, total, perDay.get(d)]) { c.expected += 1; c[st] += 1; }
       if (['absent', 'pending', 'not_checked'].includes(st)) {
-        missing.push({ day: d, user_id: u.id, employee_code: u.employee_code, full_name: u.full_name, department_name: u.department_name, status: st });
+        missing.push({ day: d, user_id: u.id, employee_code: u.employee_code, full_name: u.full_name, display_name: displayName(u), department_name: u.department_name, status: st });
       }
     }
-    perUser.push({ user_id: u.id, employee_code: u.employee_code, full_name: u.full_name, department_name: u.department_name, unit_name: u.unit_name, ...uc, rate: rate(uc) });
+    perUser.push({ user_id: u.id, employee_code: u.employee_code, full_name: u.full_name, display_name: displayName(u), department_name: u.department_name, unit_name: u.unit_name, ...uc, rate: rate(uc) });
   }
 
   const departments = [...perDept.values()].map((d) => ({ ...d, rate: rate(d) }))
@@ -116,7 +117,7 @@ function toCsv(rep) {
   };
   const lines = [head.map(esc).join(',')];
   for (const u of rep.users) {
-    lines.push([u.employee_code, u.full_name, u.department_name, u.expected, u.present, u.absent, u.official,
+    lines.push([u.employee_code, u.display_name || u.full_name, u.department_name, u.expected, u.present, u.absent, u.official,
       u.policy, u.leave, u.pending, u.not_checked, u.rate ?? ''].map(esc).join(','));
   }
   return `﻿${lines.join('\r\n')}\r\n`;

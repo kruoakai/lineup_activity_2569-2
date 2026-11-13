@@ -50,7 +50,7 @@
           {{ rep.days > 1 ? 'เรียงจากไม่เข้าแถวมากไปน้อย · ตัวเลข = จำนวนครั้ง' : 'ขาด / รอตรวจสอบ / ยังไม่เช็ก' }} (ไม่นับลา ราชการ งานนโยบาย) · รายชื่ออยู่ในชีต “ผู้ไม่เข้าแถว” ของไฟล์ Excel ด้วย</p>
         <div class="mchips">
           <span v-for="u in missingPeople" :key="u.user_id" class="mchip" :class="{ pend: !u.absent }" :title="`${u.department_name} · ขาด ${u.absent} · รอตรวจสอบ ${u.pending} · ยังไม่เช็ก ${u.not_checked}`">
-            {{ u.full_name }}<small> · {{ missLabel(u) }}</small></span>
+            {{ u.display_name || u.full_name }}<small> · {{ missLabel(u) }}</small></span>
         </div>
       </section>
 
@@ -125,7 +125,7 @@
             <thead><tr><th>ชื่อ-สกุล</th><th>แผนก</th><th class="num">มา</th><th class="num">ขาด</th><th class="num">ราชการ</th><th class="num">นโยบาย</th><th class="num">ลา</th><th class="num">รอ</th><th class="num">%</th></tr></thead>
             <tbody>
               <tr v-for="u in sortedUsers" :key="u.user_id">
-                <td>{{ u.full_name }}</td><td class="small">{{ u.department_name }}</td><td class="num">{{ u.present }}</td>
+                <td>{{ u.display_name || u.full_name }}</td><td class="small">{{ u.department_name }}</td><td class="num">{{ u.present }}</td>
                 <td class="num" :style="u.absent ? 'color:var(--bad);font-weight:600' : ''">{{ u.absent }}</td>
                 <td class="num">{{ u.official }}</td><td class="num">{{ u.policy }}</td><td class="num">{{ u.leave }}</td><td class="num">{{ u.pending }}</td>
                 <td class="num"><b :class="rateCls(u.rate)">{{ u.rate ?? '–' }}</b></td>
