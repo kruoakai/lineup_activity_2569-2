@@ -110,9 +110,9 @@
 
     <!-- ไม่ได้เข้าแถวเพราะลา / ไปราชการ / งานนโยบาย: แจ้งเอง เจ้าหน้าที่บุคลากรตรวจแล้วลงรายงาน -->
     <router-link v-if="state && auth.user.must_assemble" to="/leave" class="card row leave-tile">
-      <span class="lt-ico" aria-hidden="true">📝</span>
+      <span class="lt-ico"><LeaveIcon kind="personal" :size="24" /></span>
       <span class="grow"><b>ไม่ได้เข้าแถว? แจ้งลา / ไปราชการ</b><br /><span class="small muted">ลาป่วย · ลากิจ · ไปราชการ · งานนโยบาย — แจ้งล่วงหน้าได้</span></span>
-      <span class="go">›</span>
+      <span class="go" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
     </router-link>
 
     <section v-if="state && state.phase === 'open' && !state.geofence && state.checkMode !== 'none'" class="alert warn small">
@@ -133,6 +133,7 @@ import PhotoPicker from '../components/PhotoPicker.vue';
 import QrScanner from '../components/QrScanner.vue';
 import WindowControl from '../components/WindowControl.vue';
 import InstallApp from '../components/InstallApp.vue';
+import LeaveIcon from '../components/LeaveIcon.vue';
 import { MANAGE } from '../router';
 
 const route = useRoute();
@@ -306,9 +307,10 @@ onUnmounted(() => clearInterval(timer));
 .sign-banner { text-decoration: none; color: inherit; border-left: 4px solid var(--brand-2); align-items: center; gap: 12px; }
 .sign-banner.back { border-left-color: var(--bad); }
 .sign-banner.leave-banner { border-left-color: var(--warn); }
-.leave-tile { text-decoration: none; color: inherit; align-items: center; gap: 12px; border: 1.5px dashed var(--line); }
-.leave-tile .lt-ico { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; background: var(--warn-bg); flex: none; }
-.leave-tile .go { font-size: 1.4rem; color: var(--muted); }
+.leave-tile { text-decoration: none; color: inherit; align-items: center; gap: 12px; flex-wrap: nowrap; border: 1px solid var(--line); transition: border-color .15s, box-shadow .15s; }
+.leave-tile:hover { border-color: var(--brand-2); box-shadow: 0 6px 18px rgba(29, 78, 137, .12); }
+.leave-tile .lt-ico { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: #c27a12; background: #fdf3e2; flex: none; }
+.leave-tile .go { display: inline-flex; color: var(--muted); }
 .hero { text-align: center; }
 .clock { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1; }
 .phase { margin: 6px 0 0; font-weight: 600; }

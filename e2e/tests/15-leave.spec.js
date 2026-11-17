@@ -18,9 +18,11 @@ test('แจ้งไปราชการเอง → เจ้าหน้า
   await page.getByRole('radio', { name: /ไปราชการ/ }).click();
   await page.getByLabel('ตั้งแต่วันที่').fill(day);
   await page.getByLabel('ถึงวันที่').fill(day);
-  const send = page.getByRole('button', { name: 'ส่งให้เจ้าหน้าที่บุคลากรตรวจ' });
+  const send = page.locator('button.send');
   await expect(send).toBeDisabled(); // ไปราชการต้องมีรายละเอียด
+  await expect(send).toHaveText('กรอกรายละเอียดก่อนส่ง');
   await page.getByLabel(/รายละเอียด/).fill('อบรมที่ สอศ. ตามคำสั่งที่ 99/2569');
+  await expect(send).toHaveText('ส่งให้เจ้าหน้าที่บุคลากรตรวจ');
   if (SHOT) await page.screenshot({ path: `${SHOT}/leave-form.png`, fullPage: true });
   await send.click();
   await expect(page.locator('.alert.ok')).toContainText('รอเจ้าหน้าที่บุคลากรตรวจ');

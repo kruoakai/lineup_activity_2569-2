@@ -14,7 +14,7 @@
       <li v-for="r in items" :key="r.id" class="it" :class="r.status">
         <div class="top">
           <span class="grow"><b>{{ r.name }}</b><span class="small muted"> · {{ r.department || '-' }}</span></span>
-          <span class="badge" :class="KCLS[r.kind]">{{ r.kind_label }}</span>
+          <span class="kb" :class="r.kind"><LeaveIcon :kind="r.kind" :size="16" />{{ r.kind_label }}</span>
         </div>
         <div class="small"><b>{{ r.from === r.to ? thaiDate(r.from) : thaiRange(r.from, r.to) }}</b>
           <template v-if="r.days"> · {{ r.days.length }} วันทำงาน</template></div>
@@ -58,6 +58,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
 import { api, imageUrl } from '../api';
+import LeaveIcon from './LeaveIcon.vue';
 import { thaiDate, thaiRange, thaiTime, statusLabel } from '../util';
 
 const emit = defineEmits(['changed', 'count']);
@@ -128,6 +129,19 @@ onMounted(load);
 .it.rejected { border-left-color: var(--bad); }
 .top { display: flex; align-items: center; gap: 8px; }
 .top .grow { flex: 1; }
+.kb { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; color: var(--k); background: var(--kb); white-space: nowrap; }
+.sick { --k: #d9485f; --kb: #fdecef; }
+.personal { --k: #c27a12; --kb: #fdf3e2; }
+.official { --k: #1d4e89; --kb: #e7eef8; }
+.policy { --k: #6b4bc4; --kb: #efeafb; }
+.other { --k: #4b5a6b; --kb: #eef1f4; }
+@media (prefers-color-scheme: dark) {
+  .sick { --k: #f07a8c; --kb: rgba(240, 122, 140, .16); }
+  .personal { --k: #e8a94a; --kb: rgba(232, 169, 74, .16); }
+  .official { --k: #7cb2f5; --kb: rgba(124, 178, 245, .16); }
+  .policy { --k: #a98cf0; --kb: rgba(169, 140, 240, .16); }
+  .other { --k: #a7b4c2; --kb: rgba(167, 180, 194, .14); }
+}
 .note { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
 .pics { display: flex; gap: 6px; flex-wrap: wrap; }
 .pic { border: 1px solid var(--line); background: var(--card); color: var(--brand-2); border-radius: 8px; padding: 4px 10px; font: inherit; font-size: .85rem; cursor: pointer; }
