@@ -240,6 +240,29 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    id: '2026-11-17-18-leave-requests',
+    // ครู/บุคลากรแจ้งลา ไปราชการ งานนโยบายเอง → เจ้าหน้าที่บุคลากรตรวจแล้วกดบันทึกจึงลงรายงานประจำวัน
+    sql: [
+      `CREATE TABLE IF NOT EXISTS leave_requests (
+         id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+         user_id      INT UNSIGNED NOT NULL,
+         kind         ENUM('official','policy','sick','personal','other') NOT NULL,
+         day_from     DATE NOT NULL,
+         day_to       DATE NOT NULL,
+         note         VARCHAR(500) NOT NULL DEFAULT '',
+         photos       JSON NULL,
+         status       ENUM('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
+         reviewed_by  INT UNSIGNED NULL,
+         reviewed_at  DATETIME NULL,
+         review_note  VARCHAR(300) NOT NULL DEFAULT '',
+         created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         KEY idx_lr_status (status, day_from),
+         KEY idx_lr_user (user_id, day_from),
+         CONSTRAINT fk_lr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    ],
+  },
 ];
 
 async function migrate() {

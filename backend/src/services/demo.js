@@ -156,6 +156,13 @@ async function resetAll() {
   await db.query('DELETE FROM report_signatures');
   await db.query('DELETE FROM report_docs');
   await db.query('DELETE FROM hr_marks');
+  const lv = await db.query('SELECT photos FROM leave_requests WHERE photos IS NOT NULL');
+  for (const r of lv) {
+    let list = [];
+    try { list = Array.isArray(r.photos) ? r.photos : JSON.parse(r.photos || '[]'); } catch { list = []; }
+    for (const p of list) await files.removeUpload(p);
+  }
+  await db.query('DELETE FROM leave_requests');
   await db.query('UPDATE users SET staff_type = NULL, staff_type_demo = 0 WHERE staff_type_demo = 1');
   return { removed: r.affectedRows, photos: photos.length };
 }

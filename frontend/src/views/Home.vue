@@ -87,6 +87,11 @@
       <span class="ico" aria-hidden="true">↩</span>
       <span class="grow"><b>มีเอกสารถูกส่งกลับแก้ไข {{ sentBack }} ฉบับ</b><br /><span class="small muted">แตะเพื่อเปิด แก้ไข แล้วส่งลงนามใหม่</span></span>
     </router-link>
+    <router-link v-if="leaveN > 0" to="/hr?tab=leave" class="card row sign-banner leave-banner">
+      <span style="font-size:1.6rem" aria-hidden="true">📨</span>
+      <span class="grow"><b>มีคำแจ้งลา / ไปราชการ รอตรวจ {{ leaveN }} รายการ</b><br /><span class="small muted">แตะเพื่อตรวจแล้วบันทึกลงรายงาน</span></span>
+      <span>›</span>
+    </router-link>
     <router-link v-if="toSign > 0" to="/report-docs" class="card row sign-banner">
       <span style="font-size:1.6rem">📝</span>
       <span class="grow"><b>มีเอกสารรอท่านลงนาม {{ toSign }} ฉบับ</b><br /><span class="small muted">แตะเพื่อเปิดเอกสารและลงนาม</span></span>
@@ -101,6 +106,13 @@
         <small class="dept">{{ auth.user.department_name || 'ในแผนกของท่าน' }}</small>
       </span>
       <span class="go-btn">เปิดรายชื่อ <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></span>
+    </router-link>
+
+    <!-- ไม่ได้เข้าแถวเพราะลา / ไปราชการ / งานนโยบาย: แจ้งเอง เจ้าหน้าที่บุคลากรตรวจแล้วลงรายงาน -->
+    <router-link v-if="state && auth.user.must_assemble" to="/leave" class="card row leave-tile">
+      <span class="lt-ico" aria-hidden="true">📝</span>
+      <span class="grow"><b>ไม่ได้เข้าแถว? แจ้งลา / ไปราชการ</b><br /><span class="small muted">ลาป่วย · ลากิจ · ไปราชการ · งานนโยบาย — แจ้งล่วงหน้าได้</span></span>
+      <span class="go">›</span>
     </router-link>
 
     <section v-if="state && state.phase === 'open' && !state.geofence && state.checkMode !== 'none'" class="alert warn small">
@@ -140,6 +152,7 @@ const scanning = ref(false);
 const showPhotos = ref(false);
 const toSign = ref(0);
 const sentBack = ref(0);
+const leaveN = ref(0);
 const pos = ref(null);
 const qrToken = ref(null);
 const offset = ref(0);
@@ -274,6 +287,7 @@ onMounted(async () => {
   }
   await load();
   api('/api/report-docs/pending-count').then((r) => { toSign.value = r.count; sentBack.value = r.returned || 0; }).catch(() => {});
+  if (['hr', 'admin'].includes(auth.user.role)) api('/api/leave/review/count').then((r) => { leaveN.value = r.count; }).catch(() => {});
   tick();
   timer = setInterval(() => {
     tick();
@@ -291,6 +305,10 @@ onUnmounted(() => clearInterval(timer));
 <style scoped>
 .sign-banner { text-decoration: none; color: inherit; border-left: 4px solid var(--brand-2); align-items: center; gap: 12px; }
 .sign-banner.back { border-left-color: var(--bad); }
+.sign-banner.leave-banner { border-left-color: var(--warn); }
+.leave-tile { text-decoration: none; color: inherit; align-items: center; gap: 12px; border: 1.5px dashed var(--line); }
+.leave-tile .lt-ico { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; background: var(--warn-bg); flex: none; }
+.leave-tile .go { font-size: 1.4rem; color: var(--muted); }
 .hero { text-align: center; }
 .clock { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1; }
 .phase { margin: 6px 0 0; font-weight: 600; }

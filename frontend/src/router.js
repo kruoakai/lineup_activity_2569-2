@@ -26,6 +26,7 @@ const routes = [
   { path: '/', component: () => import('./views/Home.vue') },
   // ลิงก์จาก QR ที่จุดเข้าแถว (สแกนด้วยกล้องมือถือได้เลย)
   { path: '/q/:token', redirect: (to) => ({ path: '/', query: { qr: to.params.token } }) },
+  { path: '/leave', component: () => import('./views/Leave.vue') },
   { path: '/history', component: () => import('./views/History.vue') },
   { path: '/roster', component: () => import('./views/Roster.vue'), meta: { can: (u) => VIEW_REPORT(u) || u.peer_check } },
   { path: '/reports', component: () => import('./views/Reports.vue'), meta: { can: VIEW_REPORT } },

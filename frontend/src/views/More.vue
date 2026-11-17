@@ -51,6 +51,7 @@ const manage = computed(() => MANAGE(auth.user));
 const viewAll = computed(() => ['activity', 'hr', 'executive', 'admin'].includes(auth.user.role) || pending.value > 0);
 const pending = ref(0);
 const returned = ref(0);
+const leaveN = ref(0);
 const avatar = ref(null);
 
 const groups = computed(() => {
@@ -58,6 +59,7 @@ const groups = computed(() => {
   const out = [{
     title: 'เอกสารและรายงาน',
     items: [
+      { to: '/leave', icon: '🗓', color: 'amber', label: 'แจ้งลา / ไปราชการ', sub: 'ลาป่วย ลากิจ ไปราชการ งานนโยบาย · ดูสถานะคำแจ้ง' },
       { to: '/manuals', icon: '📖', color: 'indigo', label: 'คู่มือการใช้งาน', sub: 'อ่านบนมือถือ · ดาวน์โหลด PDF' },
       { to: '/report-docs', icon: '📝', color: 'amber', label: 'เอกสารเสนอลงนาม', sub: [pending.value && `รอท่านลงนาม ${pending.value} ฉบับ`, returned.value && `ถูกส่งกลับแก้ไข ${returned.value} ฉบับ`].filter(Boolean).join(' · ') || 'ดู สร้าง และลงนามเอกสาร', badge: pending.value + returned.value },
       viewAll.value && { to: '/executive', icon: '📈', color: 'blue', label: 'รายงานผู้บริหาร', sub: 'สรุปภาพรวม 4 รูปแบบ' },
@@ -66,6 +68,7 @@ const groups = computed(() => {
   }];
   if (['hr', 'admin'].includes(u.role)) {
     out.push({ title: 'งานบุคลากร', items: [
+      { to: '/hr?tab=leave', icon: '📨', color: 'amber', label: 'คำแจ้งจากบุคลากร', sub: leaveN.value ? `รอตรวจ ${leaveN.value} รายการ` : 'ตรวจคำแจ้งลา / ไปราชการ', badge: leaveN.value },
       { to: '/hr', icon: '🗂', color: 'blue', label: 'งานบุคลากรประจำวัน', sub: 'ลา ราชการ นโยบาย มาสาย สร้างรายงานสรุป' },
     ] });
   }
@@ -106,6 +109,7 @@ async function doLogout() {
 
 onMounted(async () => {
   try { const r = await api('/api/report-docs/pending-count'); pending.value = r.count; returned.value = r.returned || 0; } catch { /* ignore */ }
+  if (['hr', 'admin'].includes(auth.user.role)) api('/api/leave/review/count').then((r) => { leaveN.value = r.count; }).catch(() => {});
   if (auth.user.has_avatar) avatar.value = await imageUrl(`/api/profile/avatar/${auth.user.id}`).catch(() => null);
 });
 </script>

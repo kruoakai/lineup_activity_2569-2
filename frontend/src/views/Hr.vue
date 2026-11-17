@@ -87,12 +87,15 @@
       <p v-if="missing.length" class="small muted" style="margin:6px 0 0">แตะชื่อเพื่อเลือก → <b>ตั้งสถานะ</b> (เช่น ลา / ไปราชการ / มา (เช็กชื่อแทน)) · รายชื่อนี้คือข้อ 5 ของรายงาน</p>
     </section>
 
-    <div class="tabs" role="tablist">
+    <div ref="tabsEl" class="tabs" role="tablist">
       <button v-for="t in TABS" :key="t.k" role="tab" :aria-selected="tab === t.k" :class="{ on: tab === t.k }" @click="tab = t.k">
-        {{ t.label }}<i v-if="t.k === 'types' && unclassified" class="dot">{{ unclassified }}</i></button>
+        {{ t.label }}<i v-if="t.k === 'types' && unclassified" class="dot">{{ unclassified }}</i><i v-if="t.k === 'leave' && leaveN" class="dot">{{ leaveN }}</i></button>
     </div>
 
-    <template v-if="view">
+    <!-- คำแจ้งลา / ไปราชการ / งานนโยบาย ที่บุคลากรส่งมาเอง -->
+    <LeaveReview v-if="tab === 'leave'" @changed="load" @count="leaveN = $event" />
+
+    <template v-if="view && tab !== 'leave'">
       <input v-model.trim="q" class="search" placeholder="ค้นหาชื่อ แผนก หรือประเภท" />
 
       <!-- สถานะลา / ราชการ / นโยบาย -->
@@ -286,6 +289,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { api, download } from '../api';
 import { askPassword } from '../confirm';
 import WindowControl from '../components/WindowControl.vue';
+import LeaveReview from '../components/LeaveReview.vue';
 import { STATUS, statusLabel, thaiDate, thaiRange, thaiTime, serverToday, addDays, weekStart, LEAVE_TYPE } from '../util';
 
 const router = useRouter();
@@ -296,7 +300,7 @@ const fixReturn = computed(() => {
   const r = fixDoc.value?.status === 'returned' && [...fixDoc.value.signatures].reverse().find((s) => s.action === 'return');
   return r ? `${r.comment} — ${r.signer_name}` : '';
 });
-const TABS = [{ k: 'status', label: 'ลา / ราชการ / นโยบาย' }, { k: 'marks', label: 'มาสาย / ไม่ลงเวลากลับ' }, { k: 'types', label: 'ข้อมูลบุคลากร' }];
+const TABS = [{ k: 'leave', label: 'คำแจ้งจากบุคลากร' }, { k: 'status', label: 'ลา / ราชการ / นโยบาย' }, { k: 'marks', label: 'มาสาย / ไม่ลงเวลากลับ' }, { k: 'types', label: 'ข้อมูลบุคลากร' }];
 const FILTERS = [{ k: 'all', label: 'ทั้งหมด' }, { k: 'missing', label: 'ไม่เข้าแถว / ยังไม่เช็ก' }, { k: 'set', label: 'มีสถานะแล้ว' }, { k: 'teach', label: 'ข้าราชการ/พนักงานราชการ' }, { k: 'temp', label: 'ลูกจ้างชั่วคราว' }];
 const SETS = [
   { k: 'official', label: 'ไปราชการ', cls: 'info' },
@@ -312,7 +316,9 @@ const today = ref('');
 const day = ref('');
 const view = ref(null);
 const meta = ref({ staffTypes: [] });
-const tab = ref('status');
+const tab = ref(route.query.tab === 'leave' ? 'leave' : 'status');
+const leaveN = ref(0);
+const tabsEl = ref(null);
 const q = ref('');
 const filter = ref('all');
 const picked = ref([]);
@@ -674,7 +680,10 @@ onMounted(async () => {
     } catch { /* ไม่มีสิทธิ์หรือไม่พบ — ใช้หน้าปกติ */ }
   }
   meta.value = await api('/api/hr/meta').catch(() => ({ staffTypes: [] }));
+  api('/api/leave/review/count').then((r) => { leaveN.value = r.count; }).catch(() => {});
   await load();
+  // เปิดจากกล่องเตือนคำแจ้ง: เลื่อนไปที่รายการคำแจ้งเลย
+  if (tab.value === 'leave') { await nextTick(); tabsEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 });
 </script>
 
