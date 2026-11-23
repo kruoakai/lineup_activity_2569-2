@@ -1,4 +1,5 @@
 const express = require('express');
+const { HttpError } = require('./middleware/auth');
 const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
@@ -68,7 +69,9 @@ function createApp() {
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'รูปแบบข้อมูลไม่ถูกต้อง' });
     const status = err.status || 500;
     if (status >= 500) console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`, err);
-    res.status(status).json({ error: status >= 500 ? 'เกิดข้อผิดพลาดในระบบ' : err.message, code: err.code });
+    // HttpError ที่ตั้งใจส่ง (เช่น 503 บริการสำรองข้อมูล) แสดงข้อความจริง · ข้อผิดพลาดอื่นซ่อนรายละเอียด
+    const expose = status < 500 || err instanceof HttpError;
+    res.status(status).json({ error: expose ? err.message : 'เกิดข้อผิดพลาดในระบบ', code: err.code });
   });
   return app;
 }

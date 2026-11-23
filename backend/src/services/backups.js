@@ -14,6 +14,8 @@ const NAME = /^(db|uploads)-\d{8}-\d{4}\.(sql\.gz|tar\.gz)$/;
 const TS = /^\d{8}-\d{4}$/;
 const MAX_UPLOAD = Number(process.env.RESTORE_MAX_BYTES || 1024 * 1024 * 1024); // 1 GB
 
+const PERM_MSG = 'แอปไม่มีสิทธิ์เข้าถึงโฟลเดอร์สำรองข้อมูลบนเซิร์ฟเวอร์ — ระบบจะแก้ให้เองภายใน 1 นาที หรือผู้ดูแลเซิร์ฟเวอร์สั่ง sudo chown 1000:1000 /opt/lineup/deploy/backups';
+
 async function readJson(p) {
   try { return JSON.parse(await fs.readFile(p, 'utf8')); } catch { return null; }
 }
@@ -22,8 +24,9 @@ async function list() {
   let names = [];
   try {
     names = await fs.readdir(dir());
-  } catch {
-    return { available: false, items: [], full: [], last: null, pending: false, restore: null };
+  } catch (e) {
+    // EACCES = มีโฟลเดอร์แต่แอปไม่มีสิทธิ์ (เจ้าของโฟลเดอร์ deploy/backups ต้องเป็น uid 1000)
+    return { available: false, reason: e.code === 'EACCES' ? 'permission' : 'missing', items: [], full: [], last: null, pending: false, restore: null };
   }
   const items = [];
   for (const n of names.filter((x) => NAME.test(x))) {
@@ -48,7 +51,8 @@ async function list() {
 async function request(byName) {
   try {
     await fs.writeFile(path.join(dir(), '.request'), JSON.stringify({ by: byName, at: new Date().toISOString() }));
-  } catch {
+  } catch (e) {
+    if (e.code === 'EACCES') throw new HttpError(503, PERM_MSG);
     throw new HttpError(503, 'ไม่พบบริการสำรองข้อมูลบนเซิร์ฟเวอร์');
   }
 }

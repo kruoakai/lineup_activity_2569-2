@@ -19,7 +19,7 @@
       <p v-if="data.last" class="small" style="margin:0">ครั้งล่าสุด {{ dt(data.last.at) }} ·
         <span :class="data.last.ok ? 'badge ok' : 'badge bad'">{{ data.last.ok ? 'สำเร็จ' : 'ล้มเหลว' }}</span>
         ({{ REASON[data.last.reason] || data.last.reason }})</p>
-      <p v-if="data.available === false" class="alert warn small">ไม่พบโฟลเดอร์สำรองข้อมูลบนเซิร์ฟเวอร์ (รันในเครื่องนักพัฒนา)</p>
+      <p v-if="data.available === false" class="alert warn small">{{ data.reason === 'permission' ? 'แอปยังไม่มีสิทธิ์เข้าถึงโฟลเดอร์สำรองข้อมูลบนเซิร์ฟเวอร์ ระบบจะแก้ให้เองภายใน 1 นาที แล้วกดรีเฟรชหน้า — การสำรองอัตโนมัติตอนเที่ยงคืนยังทำงานตามปกติ' : 'ไม่พบโฟลเดอร์สำรองข้อมูลบนเซิร์ฟเวอร์ (รันในเครื่องนักพัฒนา)' }}</p>
       <button class="btn primary" :disabled="busy || data.pending" @click="runNow">{{ data.pending ? 'กำลังสำรอง…' : '💾 สำรองตอนนี้' }}</button>
     </section>
 

@@ -181,3 +181,22 @@ describe('สำรองทั้งระบบและกู้คืน', (
     expect(calls).toEqual(['b']);
   }, 10000);
 });
+
+describe('ไม่มีโฟลเดอร์สำรอง / เข้าไม่ได้: บอกสาเหตุจริง ไม่ใช่ "เกิดข้อผิดพลาดในระบบ"', () => {
+  test('หน้าแสดงเหตุผล · กดสำรองได้ข้อความที่อ่านเข้าใจ', async () => {
+    const saved = process.env.BACKUP_DIR;
+    process.env.BACKUP_DIR = path.join(DIR, 'no-such-dir');
+    try {
+      const l = await api(tok.ADM).get('/api/admin/backups').expect(200);
+      expect(l.body).toMatchObject({ available: false, reason: 'missing' });
+      const r = await api(tok.ADM).post('/api/admin/backups/run').send({ password: PASSWORD });
+      expect(r.status).toBe(503);
+      expect(r.body.error).toBe('ไม่พบบริการสำรองข้อมูลบนเซิร์ฟเวอร์');
+      const w = await api(tok.ADM).post('/api/admin/backups/run').send({ password: 'wrong-pass' });
+      expect(w.status).toBe(403);
+      expect(w.body.error).toBe('รหัสผ่านยืนยันไม่ถูกต้อง');
+    } finally {
+      process.env.BACKUP_DIR = saved;
+    }
+  });
+});

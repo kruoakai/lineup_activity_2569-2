@@ -19,9 +19,13 @@ DB_NAME="${DB_NAME:-lineup}"
 UPLOADS_DIR="${UPLOADS_DIR:-/uploads}"
 MYSQL=(mysql -h "$DB_HOST" -P "$DB_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD")
 
-mkdir -p "$DIR"
-chown "$APP_UID:$APP_UID" "$DIR" 2>/dev/null
-chmod 750 "$DIR" 2>/dev/null
+# แอป (ผู้ใช้ node uid 1000) ต้องอ่าน/เขียนโฟลเดอร์นี้ได้ — ตรวจซ้ำเป็นระยะ เผื่อมีคำสั่งบนเครื่องเปลี่ยนเจ้าของโฟลเดอร์ (เช่น chown -R ตอนอัปเดตระบบ)
+fix_perm() {
+  mkdir -p "$DIR"
+  [ "$(stat -c %u "$DIR")" = "$APP_UID" ] || chown "$APP_UID:$APP_UID" "$DIR" 2>/dev/null
+  chmod 750 "$DIR" 2>/dev/null
+}
+fix_perm
 
 backup() {
   local reason="$1" ts out ok=1
@@ -97,7 +101,9 @@ if [ "${1:-}" = "backup" ]; then
 fi
 
 last_auto=""
+n=0
 while true; do
+  n=$((n + 1)); [ $((n % 12)) = 0 ] && fix_perm
   if [ -f "$DIR/.restore-request" ]; then
     db=$(sed -n 's/^DB=//p' "$DIR/.restore-request" | head -1)
     up=$(sed -n 's/^UPLOADS=//p' "$DIR/.restore-request" | head -1)
