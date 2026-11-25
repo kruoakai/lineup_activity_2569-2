@@ -94,6 +94,7 @@ const groups = computed(() => {
         { to: '/admin/settings', icon: '⚙️', color: 'slate', label: 'ตั้งค่าระบบ', sub: 'เวลา พื้นที่ วิธีเช็กชื่อ · น้องแถวดี (AI)' },
         { to: '/admin/settings#assistant', icon: '🤖', color: 'pink', label: 'น้องแถวดี (AI ผู้ช่วย)', sub: 'วางคีย์ OpenRouter · ทดสอบ · เปิด/ปิด' },
         { to: '/admin/report-setup', icon: '🖋', color: 'indigo', label: 'แบบรายงานและผู้ลงนาม', sub: 'ผู้ลงนาม และอีเมล' },
+        { to: '/admin/simulation', icon: '🧭', color: 'indigo', label: 'ภาพจำลองการเข้าแถว', sub: 'เล่นซ้ำสถานการณ์ · ทดลองกฎก่อนเปลี่ยนค่า' },
         { to: '/admin/data', icon: '🎲', color: 'amber', label: 'ข้อมูลจำลอง', sub: 'ทดลอง / เริ่มใช้งานจริง' },
         { to: '/admin/backups', icon: '💾', color: 'teal', label: 'สำรองและกู้คืนระบบ', sub: 'สำรองทั้งระบบ · กู้คืนเมื่อเซิร์ฟเวอร์มีปัญหา' },
       ],

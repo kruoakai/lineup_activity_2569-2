@@ -93,6 +93,15 @@ router.get('/settings', async (_req, res) => {
   res.json(await settings.getAll());
 });
 
+// ภาพจำลองการเข้าแถว: ทดลองกฎด้วยค่าระบบจริงแบบอ่านอย่างเดียว (ไม่บันทึกอะไรลงฐานข้อมูล)
+const simulation = require('../services/simulation');
+router.get('/sim/rules', async (_req, res) => {
+  res.json(await simulation.rules());
+});
+router.post('/sim/evaluate', async (req, res) => {
+  res.json(await simulation.evaluate(req.body || {}));
+});
+
 // น้องแถวดี (AI ผู้ช่วย): วางคีย์ OpenRouter / เลือกโมเดล / เปิด-ปิด / ทดสอบ
 const assistant = require('../services/assistant');
 router.get('/assistant', async (_req, res) => {

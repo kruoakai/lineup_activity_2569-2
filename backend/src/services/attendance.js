@@ -123,6 +123,38 @@ async function findRecord(userId, day) {
 }
 
 /**
+ * กฎตัดสินผลการเช็กชื่อด้วยตนเอง (ไม่แตะฐานข้อมูล) — ใช้ทั้งตอนเช็กชื่อจริงและหน้าภาพจำลองของผู้ดูแล
+ * mode: check_mode · g: ผลจาก geo.evaluate() · qrOk: QR ถูกต้องหรือไม่
+ * คืน { status: 'present' | null, method, flags, message, qrRequired }
+ *   status = null → ยังไม่ผ่าน (ผู้ใช้เลือกลองใหม่ / สแกน QR / ส่งคำขอตรวจสอบ)
+ */
+function decide(mode, g, qrOk) {
+  let status = null;
+  let method = qrOk ? 'self_qr' : 'self_gps';
+  const flags = [];
+  if (mode === 'none') {
+    // โหมดไม่ต้องตั้งค่า: กดปุ่มแล้วบันทึก "มาเข้าแถว" ทันที (เก็บพิกัดไว้ถ้าเครื่องส่งมา)
+    status = 'present';
+    method = qrOk ? 'self_qr' : 'self_tap';
+  } else {
+    if (mode === 'qr_required' && !qrOk) return { status: null, method, flags, qrRequired: true, message: 'ต้องสแกน QR Code ที่จุดเข้าแถว' };
+    if (g.result === 'in_zone' && (mode !== 'qr_required' || qrOk)) status = 'present';
+    else if (qrOk && g.result !== 'out_of_zone') status = 'present';
+    else if (qrOk && g.result === 'out_of_zone') flags.push(`QR ถูกต้องแต่พิกัดห่าง ${g.distance} ม.`);
+
+    if (status === 'present' && g.result === 'not_configured') flags.push('ยังไม่ได้กำหนดพื้นที่เข้าแถว');
+  }
+  const geoMessage = {
+    out_of_zone: `อยู่นอกพื้นที่เข้าแถว (ห่าง ${g.distance} ม.)`,
+    low_accuracy: 'สัญญาณ GPS ไม่แม่นยำพอ',
+    no_location: 'ไม่ได้รับพิกัดจากอุปกรณ์',
+    not_configured: 'ผู้ดูแลยังไม่ได้กำหนดพื้นที่เข้าแถว',
+    in_zone: '',
+  }[g.result];
+  return { status, method, flags, message: status ? '' : (flags[0] || geoMessage), geoMessage, qrRequired: false };
+}
+
+/**
  * บุคลากรเช็กชื่อด้วยตนเอง
  * body: { lat, lng, accuracy, qrToken, deviceId, photo, requestReview, note }
  */
@@ -161,31 +193,11 @@ async function selfCheckInOnce(user, body, ip) {
   if (body.qrToken && !qrOk) throw new HttpError(400, 'QR Code หมดอายุหรือไม่ถูกต้อง กรุณาสแกนใหม่', 'QR_INVALID');
 
   // ตัดสินผล
-  let status = null;
-  let method = qrOk ? 'self_qr' : 'self_gps';
-  const flags = [];
-  if (s.check_mode === 'none') {
-    // โหมดไม่ต้องตั้งค่า: กดปุ่มแล้วบันทึก "มาเข้าแถว" ทันที (เก็บพิกัดไว้ถ้าเครื่องส่งมา)
-    status = 'present';
-    method = qrOk ? 'self_qr' : 'self_tap';
-  } else {
-    if (s.check_mode === 'qr_required' && !qrOk) {
-      throw new HttpError(400, 'ต้องสแกน QR Code ที่จุดเข้าแถว', 'QR_REQUIRED');
-    }
-    if (g.result === 'in_zone' && (s.check_mode !== 'qr_required' || qrOk)) status = 'present';
-    else if (qrOk && g.result !== 'out_of_zone') status = 'present';
-    else if (qrOk && g.result === 'out_of_zone') flags.push(`QR ถูกต้องแต่พิกัดห่าง ${g.distance} ม.`);
-
-    if (status === 'present' && g.result === 'not_configured') flags.push('ยังไม่ได้กำหนดพื้นที่เข้าแถว');
-  }
-
-  const geoMessage = {
-    out_of_zone: `อยู่นอกพื้นที่เข้าแถว (ห่าง ${g.distance} ม.)`,
-    low_accuracy: 'สัญญาณ GPS ไม่แม่นยำพอ',
-    no_location: 'ไม่ได้รับพิกัดจากอุปกรณ์',
-    not_configured: 'ผู้ดูแลยังไม่ได้กำหนดพื้นที่เข้าแถว',
-    in_zone: '',
-  }[g.result];
+  const decision = decide(s.check_mode, g, qrOk);
+  if (decision.qrRequired) throw new HttpError(400, 'ต้องสแกน QR Code ที่จุดเข้าแถว', 'QR_REQUIRED');
+  let { status } = decision;
+  const { method, flags } = decision;
+  const { geoMessage } = decision;
 
   if (!status) {
     if (!body.requestReview) {
@@ -399,4 +411,4 @@ async function events(attendanceId) {
 }
 
 module.exports = {
-  recordBatch, addPhotos, photosOf, MAX_PHOTOS, selfCheckIn, recordFor, roster, history, events, findRecord, upsert, STATUSES, STATUS_LABELS };
+  recordBatch, addPhotos, photosOf, MAX_PHOTOS, selfCheckIn, decide, recordFor, roster, history, events, findRecord, upsert, STATUSES, STATUS_LABELS };

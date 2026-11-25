@@ -22,6 +22,7 @@ const routes = [
   { path: '/admin/data', component: () => import('./views/admin/DataTools.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/admin/user-data', component: () => import('./views/admin/UserData.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/admin/backups', component: () => import('./views/admin/Backups.vue'), meta: { can: (u) => u.role === 'admin' } },
+  { path: '/admin/simulation', component: () => import('./views/admin/Simulation.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/admin/report-setup', component: () => import('./views/admin/ReportSetup.vue'), meta: { can: (u) => u.role === 'admin' } },
   { path: '/', component: () => import('./views/Home.vue') },
   // ลิงก์จาก QR ที่จุดเข้าแถว (สแกนด้วยกล้องมือถือได้เลย)

@@ -1,0 +1,122 @@
+[
+ {
+  "key": "normal",
+  "title": "วันปกติ",
+  "desc": "ส่วนใหญ่มาถึง 07:40–08:05 เช็กด้วย GPS มีบางคน GPS ไม่แม่น ส่งคำขอตรวจสอบ และมีเพื่อนในแผนกเช็กแทนคนที่ลืม",
+  "generatedAt": "2026-11-25T08:55:07.726Z",
+  "total": {
+   "expected": 180,
+   "present": 152,
+   "absent": 6,
+   "official": 9,
+   "policy": 5,
+   "leave": 8,
+   "pending": 0,
+   "not_checked": 0,
+   "rate": 96.2,
+   "members": 180,
+   "proxy": 6,
+   "flagged": 4
+  }
+ },
+ {
+  "key": "rain",
+  "title": "ฝนตก มาใกล้เวลาปิด",
+  "desc": "ทุกคนมาช้ากว่าปกติ กระจุกช่วง 08:15–08:30 สัญญาณ GPS ใต้หลังคาไม่แม่นมากขึ้น และมีคนมาไม่ทันมากขึ้น",
+  "generatedAt": "2026-11-25T08:55:11.357Z",
+  "total": {
+   "expected": 180,
+   "present": 130,
+   "absent": 28,
+   "official": 7,
+   "policy": 6,
+   "leave": 9,
+   "pending": 0,
+   "not_checked": 0,
+   "rate": 82.3,
+   "members": 180,
+   "proxy": 6,
+   "flagged": 4
+  }
+ },
+ {
+  "key": "outage",
+  "title": "เน็ตล่ม 07:55–08:08",
+  "desc": "อินเทอร์เน็ตใช้ไม่ได้ 13 นาทีช่วงคนมามากที่สุด ระบบไม่มีคิวเก็บไว้ส่งทีหลัง ทุกคนต้องกดใหม่เมื่อเน็ตกลับมา",
+  "generatedAt": "2026-11-25T08:55:15.061Z",
+  "total": {
+   "expected": 180,
+   "present": 153,
+   "absent": 5,
+   "official": 8,
+   "policy": 5,
+   "leave": 9,
+   "pending": 0,
+   "not_checked": 0,
+   "rate": 96.8,
+   "members": 180,
+   "proxy": 6,
+   "flagged": 4
+  }
+ },
+ {
+  "key": "close-early",
+  "title": "งานกิจกรรมสั่งปิด 08:15",
+  "desc": "เริ่มกิจกรรมหน้าเสาธงเร็วกว่ากำหนด เจ้าหน้าที่สั่งปิดเช็กชื่อด้วยมือตอน 08:15 คนที่มาหลังจากนั้นเช็กเองไม่ได้",
+  "generatedAt": "2026-11-25T08:55:19.168Z",
+  "total": {
+   "expected": 180,
+   "present": 150,
+   "absent": 8,
+   "official": 7,
+   "policy": 4,
+   "leave": 11,
+   "pending": 0,
+   "not_checked": 0,
+   "rate": 94.9,
+   "members": 180,
+   "proxy": 0,
+   "flagged": 3
+  }
+ },
+ {
+  "key": "many-away",
+  "title": "ไปราชการ / ลา จำนวนมาก",
+  "desc": "ช่วงแข่งขันทักษะวิชาชีพ บุคลากรไปราชการและงานนโยบายจำนวนมาก รายงานตัดออกจากตัวหาร อัตราเข้าแถวจึงไม่ลดลง",
+  "generatedAt": "2026-11-25T08:55:23.607Z",
+  "total": {
+   "expected": 180,
+   "present": 116,
+   "absent": 3,
+   "official": 30,
+   "policy": 13,
+   "leave": 18,
+   "pending": 0,
+   "not_checked": 0,
+   "rate": 97.5,
+   "members": 180,
+   "proxy": 3,
+   "flagged": 3
+  }
+ },
+ {
+  "key": "cancelled",
+  "title": "วันงดเข้าแถว",
+  "desc": "ปฏิทินกำหนด \"งดเข้าแถว\" คนที่ไม่รู้แล้วกดเช็กชื่อจะได้ข้อความว่าวันนี้ไม่มีการเข้าแถว และรายงานไม่นับวันนี้",
+  "generatedAt": "2026-11-25T08:55:25.763Z",
+  "total": {
+   "expected": 0,
+   "present": 0,
+   "absent": 0,
+   "official": 0,
+   "policy": 0,
+   "leave": 0,
+   "pending": 0,
+   "not_checked": 0,
+   "rate": null,
+   "members": 180,
+   "proxy": 0,
+   "flagged": 0
+  }
+ }
+]
